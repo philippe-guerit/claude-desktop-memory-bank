@@ -1,6 +1,6 @@
 # Claude Desktop Memory Bank - MCP Server Implementation Guide
 
-This guide provides practical steps for implementing the Claude Desktop Memory Bank MCP server, following the MCP specification.
+This guide provides practical steps for implementing the Claude Desktop Memory Bank MCP server, following the MCP specification with support for multiple memory bank types.
 
 ## Prerequisites
 
@@ -9,7 +9,8 @@ Before starting the implementation, ensure you have:
 1. **Python** (3.8 or newer) installed
 2. **Node.js** (for Claude Desktop integration)
 3. **Claude Desktop** application
-4. Basic knowledge of Python programming
+4. **Git** (for repository detection and integration)
+5. Basic knowledge of Python programming
 
 ## Project Setup
 
@@ -21,11 +22,15 @@ claude-desktop-memory-bank/
 │   ├── __init__.py
 │   ├── server.py
 │   ├── context_manager.py
+│   ├── memory_bank_selector.py
 │   ├── storage_manager.py
+│   ├── repository_utils.py
 │   └── utils.py
 ├── storage/
-│   ├── templates/
-│   └── projects/
+│   ├── global/
+│   ├── projects/
+│   ├── repositories/
+│   └── templates/
 ├── tests/
 │   └── test_server.py
 ├── config.json
@@ -43,10 +48,118 @@ python -m venv venv
 source venv/bin/activate  # On Windows, use: venv\Scripts\activate
 
 # Install dependencies
-pip install mcp httpx
+pip install mcp httpx gitpython
 ```
 
-## Step 2: Implement the Storage Manager
+## Step 2: Implement the Repository Utilities
+
+Let's start by implementing utilities for Git repository detection and management:
+
+```python
+# memory_bank_server/repository_utils.py
+import os
+import subprocess
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+
+class RepositoryUtils:
+    @staticmethod
+    def is_git_repository(path: str) -> bool:
+        """Check if the given path is a git repository."""
+        git_dir = os.path.join(path, '.git')
+        return os.path.exists(git_dir) and os.path.isdir(git_dir)
+    
+    @staticmethod
+    def find_repository_root(path: str) -> Optional[str]:
+        """Find the nearest git repository root from a path."""
+        current = os.path.abspath(path)
+        while current != os.path.dirname(current):  # Stop at filesystem root
+            if RepositoryUtils.is_git_repository(current):
+                return current
+            current = os.path.dirname(current)
+        return None
+    
+    @staticmethod
+    def get_repository_name(repo_path: str) -> str:
+        """Get the name of a repository from its path."""
+        return os.path.basename(repo_path)
+    
+    @staticmethod
+    def initialize_memory_bank(repo_path: str, templates_dir: str) -> bool:
+        """Initialize a .claude-memory directory in the repository."""
+        memory_dir = os.path.join(repo_path, '.claude-memory')
+        
+        # Create directory if it doesn't exist
+        if not os.path.exists(memory_dir):
+            os.makedirs(memory_dir)
+        
+        # Copy template files
+        template_files = [f for f in os.listdir(templates_dir) if f.endswith('.md')]
+        for template_file in template_files:
+            source = os.path.join(templates_dir, template_file)
+            destination = os.path.join(memory_dir, template_file)
+            
+            # Only copy if destination doesn't exist
+            if not os.path.exists(destination):
+                with open(source, 'r', encoding='utf-8') as src_file:
+                    with open(destination, 'w', encoding='utf-8') as dest_file:
+                        dest_file.write(src_file.read())
+        
+        return True
+    
+    @staticmethod
+    def get_repository_info(repo_path: str) -> Dict[str, Any]:
+        """Get information about a Git repository."""
+        try:
+            # Get repository name
+            name = RepositoryUtils.get_repository_name(repo_path)
+            
+            # Get remote URL if available
+            remote_url = ""
+            try:
+                result = subprocess.run(
+                    ["git", "config", "--get", "remote.origin.url"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if result.returncode == 0:
+                    remote_url = result.stdout.strip()
+            except Exception:
+                pass
+            
+            # Get current branch
+            branch = ""
+            try:
+                result = subprocess.run(
+                    ["git", "branch", "--show-current"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if result.returncode == 0:
+                    branch = result.stdout.strip()
+            except Exception:
+                pass
+            
+            return {
+                "name": name,
+                "path": repo_path,
+                "remote_url": remote_url,
+                "branch": branch,
+                "memory_bank_path": os.path.join(repo_path, '.claude-memory')
+            }
+        except Exception as e:
+            return {
+                "name": os.path.basename(repo_path),
+                "path": repo_path,
+                "error": str(e)
+            }
+```
+
+## Step 3: Implement the Storage Manager
 
 The storage manager will handle file operations for the memory bank:
 
@@ -54,18 +167,23 @@ The storage manager will handle file operations for the memory bank:
 # memory_bank_server/storage_manager.py
 import os
 import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 class StorageManager:
     def __init__(self, root_path: str):
         self.root_path = Path(root_path)
-        self.templates_path = self.root_path / "templates"
+        self.global_path = self.root_path / "global"
         self.projects_path = self.root_path / "projects"
+        self.repositories_path = self.root_path / "repositories"
+        self.templates_path = self.root_path / "templates"
         
         # Ensure directories exist
-        self.templates_path.mkdir(parents=True, exist_ok=True)
+        self.global_path.mkdir(parents=True, exist_ok=True)
         self.projects_path.mkdir(parents=True, exist_ok=True)
+        self.repositories_path.mkdir(parents=True, exist_ok=True)
+        self.templates_path.mkdir(parents=True, exist_ok=True)
     
     async def initialize_template(self, template_name: str, content: str) -> None:
         """Initialize a template file if it doesn't exist."""
@@ -92,8 +210,19 @@ class StorageManager:
         template_path = self.templates_path / template_name
         return await self._read_file(template_path)
     
-    async def create_project(self, project_name: str, metadata: Dict[str, Any]) -> None:
-        """Create a new project."""
+    async def initialize_global_memory_bank(self) -> None:
+        """Initialize the global memory bank if it doesn't exist."""
+        # Check if global memory bank exists
+        if not any(self.global_path.iterdir()):
+            # Initialize files from templates
+            for template_name in ["projectbrief.md", "productContext.md", "systemPatterns.md", 
+                                "techContext.md", "activeContext.md", "progress.md"]:
+                template_content = await self.get_template(template_name)
+                file_path = self.global_path / template_name
+                await self._write_file(file_path, template_content)
+    
+    async def create_project_memory_bank(self, project_name: str, metadata: Dict[str, Any]) -> None:
+        """Create a new project memory bank."""
         project_path = self.projects_path / project_name
         project_path.mkdir(exist_ok=True)
         
@@ -108,8 +237,45 @@ class StorageManager:
             file_path = project_path / template_name
             await self._write_file(file_path, template_content)
     
-    async def get_projects(self) -> List[str]:
-        """Get a list of all project names."""
+    async def register_repository(self, repo_path: str, project_name: Optional[str] = None) -> None:
+        """Register a repository in the memory bank system."""
+        repo_name = os.path.basename(repo_path)
+        repo_record = {
+            "path": repo_path,
+            "name": repo_name,
+            "project": project_name
+        }
+        
+        # Save repository record
+        record_path = self.repositories_path / f"{repo_name}.json"
+        await self._write_file(record_path, json.dumps(repo_record, indent=2))
+        
+        # If project is specified, update project metadata
+        if project_name:
+            project_metadata_path = self.projects_path / project_name / "project.json"
+            if project_metadata_path.exists():
+                metadata = json.loads(await self._read_file(project_metadata_path))
+                metadata["repository"] = repo_path
+                await self._write_file(project_metadata_path, json.dumps(metadata, indent=2))
+    
+    async def get_repository_record(self, repo_name: str) -> Optional[Dict[str, Any]]:
+        """Get repository record by name."""
+        record_path = self.repositories_path / f"{repo_name}.json"
+        if record_path.exists():
+            content = await self._read_file(record_path)
+            return json.loads(content)
+        return None
+    
+    async def get_repositories(self) -> List[Dict[str, Any]]:
+        """Get all registered repositories."""
+        repositories = []
+        for file in self.repositories_path.glob("*.json"):
+            content = await self._read_file(file)
+            repositories.append(json.loads(content))
+        return repositories
+    
+    async def get_project_memory_banks(self) -> List[str]:
+        """Get a list of all project memory bank names."""
         return [p.name for p in self.projects_path.iterdir() if p.is_dir()]
     
     async def get_project_metadata(self, project_name: str) -> Dict[str, Any]:
@@ -123,20 +289,25 @@ class StorageManager:
         metadata_path = self.projects_path / project_name / "project.json"
         await self._write_file(metadata_path, json.dumps(metadata, indent=2))
     
-    async def get_context_file(self, project_name: str, file_name: str) -> str:
-        """Get the content of a project context file."""
-        file_path = self.projects_path / project_name / file_name
+    async def get_context_file(self, memory_bank_path: str, file_name: str) -> str:
+        """Get the content of a context file from a memory bank."""
+        file_path = Path(memory_bank_path) / file_name
         return await self._read_file(file_path)
     
-    async def update_context_file(self, project_name: str, file_name: str, content: str) -> None:
-        """Update a project context file."""
-        file_path = self.projects_path / project_name / file_name
+    async def update_context_file(self, memory_bank_path: str, file_name: str, content: str) -> None:
+        """Update a context file in a memory bank."""
+        file_path = Path(memory_bank_path) / file_name
         await self._write_file(file_path, content)
         
-        # Update last modified in metadata
-        metadata = await self.get_project_metadata(project_name)
-        metadata["lastModified"] = self._get_current_timestamp()
-        await self.update_project_metadata(project_name, metadata)
+        # If this is a project memory bank, update the last modified timestamp
+        if str(self.projects_path) in str(file_path):
+            project_name = file_path.parent.name
+            try:
+                metadata = await self.get_project_metadata(project_name)
+                metadata["lastModified"] = self._get_current_timestamp()
+                await self.update_project_metadata(project_name, metadata)
+            except Exception:
+                pass
     
     async def _read_file(self, path: Path) -> str:
         """Read a file asynchronously."""
@@ -154,30 +325,245 @@ class StorageManager:
         return datetime.utcnow().isoformat()
 ```
 
-## Step 3: Implement the Context Manager
+## Step 4: Implement the Memory Bank Selector
+
+Now let's create the memory bank selector to manage multiple memory banks:
+
+```python
+# memory_bank_server/memory_bank_selector.py
+import os
+import json
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Tuple
+
+from .repository_utils import RepositoryUtils
+from .storage_manager import StorageManager
+
+class MemoryBankSelector:
+    def __init__(self, storage_manager: StorageManager):
+        self.storage_manager = storage_manager
+        self.current_memory_bank = None
+        self.current_memory_bank_type = None
+    
+    async def initialize(self) -> None:
+        """Initialize the memory bank selector."""
+        # Ensure global memory bank exists
+        await self.storage_manager.initialize_global_memory_bank()
+        
+        # Set global as default
+        self.current_memory_bank = str(self.storage_manager.global_path)
+        self.current_memory_bank_type = "global"
+    
+    async def select_memory_bank(self, 
+                              claude_project: Optional[str] = None, 
+                              repo_path: Optional[str] = None) -> Dict[str, Any]:
+        """Select an appropriate memory bank based on context."""
+        # Priority 1: Explicitly provided repository path
+        if repo_path:
+            if RepositoryUtils.is_git_repository(repo_path):
+                # Initialize memory bank if it doesn't exist
+                memory_bank_path = os.path.join(repo_path, '.claude-memory')
+                if not os.path.exists(memory_bank_path):
+                    os.makedirs(memory_bank_path)
+                    RepositoryUtils.initialize_memory_bank(
+                        repo_path, 
+                        str(self.storage_manager.templates_path)
+                    )
+                
+                # Register repository if not already registered
+                repo_name = RepositoryUtils.get_repository_name(repo_path)
+                repo_record = await self.storage_manager.get_repository_record(repo_name)
+                if not repo_record:
+                    await self.storage_manager.register_repository(repo_path, claude_project)
+                
+                self.current_memory_bank = memory_bank_path
+                self.current_memory_bank_type = "repository"
+                
+                return {
+                    "type": "repository",
+                    "path": memory_bank_path,
+                    "repo_info": RepositoryUtils.get_repository_info(repo_path)
+                }
+        
+        # Priority 2: Claude project with associated repository
+        if claude_project:
+            # Get list of project memory banks
+            project_memory_banks = await self.storage_manager.get_project_memory_banks()
+            
+            if claude_project in project_memory_banks:
+                # Check if project has an associated repository
+                project_metadata = await self.storage_manager.get_project_metadata(claude_project)
+                if "repository" in project_metadata and project_metadata["repository"]:
+                    repo_path = project_metadata["repository"]
+                    
+                    if RepositoryUtils.is_git_repository(repo_path):
+                        # Use repository memory bank
+                        memory_bank_path = os.path.join(repo_path, '.claude-memory')
+                        if not os.path.exists(memory_bank_path):
+                            os.makedirs(memory_bank_path)
+                            RepositoryUtils.initialize_memory_bank(
+                                repo_path, 
+                                str(self.storage_manager.templates_path)
+                            )
+                        
+                        self.current_memory_bank = memory_bank_path
+                        self.current_memory_bank_type = "repository"
+                        
+                        return {
+                            "type": "repository",
+                            "path": memory_bank_path,
+                            "repo_info": RepositoryUtils.get_repository_info(repo_path),
+                            "project": claude_project
+                        }
+                
+                # No repository or invalid repository, use project memory bank
+                project_path = self.storage_manager.projects_path / claude_project
+                self.current_memory_bank = str(project_path)
+                self.current_memory_bank_type = "project"
+                
+                return {
+                    "type": "project",
+                    "path": str(project_path),
+                    "project": claude_project
+                }
+        
+        # Priority 3: Default to global memory bank
+        global_path = str(self.storage_manager.global_path)
+        self.current_memory_bank = global_path
+        self.current_memory_bank_type = "global"
+        
+        return {
+            "type": "global",
+            "path": global_path
+        }
+    
+    async def get_current_memory_bank(self) -> Dict[str, Any]:
+        """Get information about the currently selected memory bank."""
+        if not self.current_memory_bank:
+            # Initialize with global if not set
+            await self.initialize()
+        
+        result = {
+            "type": self.current_memory_bank_type,
+            "path": self.current_memory_bank
+        }
+        
+        # Add additional info based on type
+        if self.current_memory_bank_type == "repository":
+            repo_path = os.path.dirname(self.current_memory_bank)
+            result["repo_info"] = RepositoryUtils.get_repository_info(repo_path)
+        elif self.current_memory_bank_type == "project":
+            project_name = os.path.basename(self.current_memory_bank)
+            result["project"] = project_name
+        
+        return result
+    
+    async def detect_repository(self, path: str) -> Optional[Dict[str, Any]]:
+        """Detect if a path is within a Git repository."""
+        repo_root = RepositoryUtils.find_repository_root(path)
+        if repo_root:
+            return RepositoryUtils.get_repository_info(repo_root)
+        return None
+    
+    async def initialize_repository_memory_bank(self, repo_path: str, 
+                                            claude_project: Optional[str] = None) -> Dict[str, Any]:
+        """Initialize a repository memory bank."""
+        if not RepositoryUtils.is_git_repository(repo_path):
+            raise ValueError(f"Path is not a Git repository: {repo_path}")
+        
+        # Create .claude-memory directory if it doesn't exist
+        memory_bank_path = os.path.join(repo_path, '.claude-memory')
+        if not os.path.exists(memory_bank_path):
+            os.makedirs(memory_bank_path)
+        
+        # Initialize with template files
+        RepositoryUtils.initialize_memory_bank(
+            repo_path, 
+            str(self.storage_manager.templates_path)
+        )
+        
+        # Register repository 
+        await self.storage_manager.register_repository(repo_path, claude_project)
+        
+        # Set as current memory bank
+        self.current_memory_bank = memory_bank_path
+        self.current_memory_bank_type = "repository"
+        
+        return {
+            "type": "repository",
+            "path": memory_bank_path,
+            "repo_info": RepositoryUtils.get_repository_info(repo_path),
+            "project": claude_project
+        }
+    
+    async def get_all_memory_banks(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get information about all available memory banks."""
+        result = {
+            "global": [{"path": str(self.storage_manager.global_path)}],
+            "projects": [],
+            "repositories": []
+        }
+        
+        # Get project memory banks
+        project_names = await self.storage_manager.get_project_memory_banks()
+        for name in project_names:
+            try:
+                metadata = await self.storage_manager.get_project_metadata(name)
+                result["projects"].append({
+                    "name": name,
+                    "path": str(self.storage_manager.projects_path / name),
+                    "metadata": metadata
+                })
+            except Exception:
+                # Skip projects with errors
+                pass
+        
+        # Get repository memory banks
+        repositories = await self.storage_manager.get_repositories()
+        for repo in repositories:
+            try:
+                repo_path = repo.get("path", "")
+                if repo_path and RepositoryUtils.is_git_repository(repo_path):
+                    memory_bank_path = os.path.join(repo_path, '.claude-memory')
+                    if os.path.exists(memory_bank_path):
+                        result["repositories"].append({
+                            "name": repo.get("name", ""),
+                            "path": memory_bank_path,
+                            "repo_path": repo_path,
+                            "project": repo.get("project")
+                        })
+            except Exception:
+                # Skip repositories with errors
+                pass
+        
+        return result
+```
+
+## Step 5: Implement the Context Manager
 
 The context manager will handle the business logic for managing context files:
 
 ```python
 # memory_bank_server/context_manager.py
+import os
+from pathlib import Path
 from typing import Dict, List, Optional, Any
+
 from .storage_manager import StorageManager
+from .memory_bank_selector import MemoryBankSelector
 
 class ContextManager:
-    def __init__(self, storage_manager: StorageManager):
+    def __init__(self, storage_manager: StorageManager, memory_bank_selector: MemoryBankSelector):
         self.storage_manager = storage_manager
-        self.current_project = None
+        self.memory_bank_selector = memory_bank_selector
     
     async def initialize(self) -> None:
         """Initialize the context manager."""
         await self.storage_manager.initialize_templates()
-        
-        # Set current project if any exist
-        projects = await self.storage_manager.get_projects()
-        if projects:
-            self.current_project = projects[0]
+        await self.memory_bank_selector.initialize()
     
-    async def create_project(self, project_name: str, description: str) -> Dict[str, Any]:
+    async def create_project(self, project_name: str, description: str, 
+                         repository_path: Optional[str] = None) -> Dict[str, Any]:
         """Create a new project with initial context files."""
         metadata = {
             "name": project_name,
@@ -186,35 +572,50 @@ class ContextManager:
             "lastModified": self.storage_manager._get_current_timestamp()
         }
         
-        await self.storage_manager.create_project(project_name, metadata)
-        self.current_project = project_name
+        # Add repository if specified
+        if repository_path:
+            metadata["repository"] = repository_path
+        
+        # Create project memory bank
+        await self.storage_manager.create_project_memory_bank(project_name, metadata)
+        
+        # If repository is specified, register it
+        if repository_path:
+            await self.storage_manager.register_repository(repository_path, project_name)
+        
+        # Select this memory bank
+        await self.memory_bank_selector.select_memory_bank(claude_project=project_name)
         
         return metadata
     
     async def get_projects(self) -> List[Dict[str, Any]]:
         """Get all projects with their metadata."""
-        project_names = await self.storage_manager.get_projects()
+        project_names = await self.storage_manager.get_project_memory_banks()
         projects = []
         
         for name in project_names:
-            metadata = await self.storage_manager.get_project_metadata(name)
-            projects.append(metadata)
+            try:
+                metadata = await self.storage_manager.get_project_metadata(name)
+                projects.append(metadata)
+            except Exception:
+                # Skip projects with errors
+                pass
         
         return projects
     
-    async def set_current_project(self, project_name: str) -> Dict[str, Any]:
-        """Set the current active project."""
-        project_names = await self.storage_manager.get_projects()
-        if project_name not in project_names:
-            raise ValueError(f"Project '{project_name}' does not exist")
-        
-        self.current_project = project_name
-        return await self.storage_manager.get_project_metadata(project_name)
+    async def set_memory_bank(self, 
+                          claude_project: Optional[str] = None, 
+                          repository_path: Optional[str] = None) -> Dict[str, Any]:
+        """Set the active memory bank."""
+        return await self.memory_bank_selector.select_memory_bank(
+            claude_project=claude_project,
+            repo_path=repository_path
+        )
     
     async def get_context(self, context_type: str) -> str:
-        """Get the content of a specific context file."""
-        if not self.current_project:
-            raise ValueError("No active project selected")
+        """Get the content of a specific context file from the current memory bank."""
+        memory_bank_info = await self.memory_bank_selector.get_current_memory_bank()
+        memory_bank_path = memory_bank_info["path"]
         
         file_mapping = {
             "project_brief": "projectbrief.md",
@@ -229,14 +630,14 @@ class ContextManager:
             raise ValueError(f"Unknown context type: {context_type}")
         
         return await self.storage_manager.get_context_file(
-            self.current_project, 
+            memory_bank_path, 
             file_mapping[context_type]
         )
     
     async def update_context(self, context_type: str, content: str) -> Dict[str, Any]:
-        """Update a specific context file."""
-        if not self.current_project:
-            raise ValueError("No active project selected")
+        """Update a specific context file in the current memory bank."""
+        memory_bank_info = await self.memory_bank_selector.get_current_memory_bank()
+        memory_bank_path = memory_bank_info["path"]
         
         file_mapping = {
             "project_brief": "projectbrief.md",
@@ -251,17 +652,17 @@ class ContextManager:
             raise ValueError(f"Unknown context type: {context_type}")
         
         await self.storage_manager.update_context_file(
-            self.current_project,
+            memory_bank_path,
             file_mapping[context_type],
             content
         )
         
-        return await self.storage_manager.get_project_metadata(self.current_project)
+        return memory_bank_info
     
     async def search_context(self, query: str) -> Dict[str, List[str]]:
-        """Search through context files for the given query."""
-        if not self.current_project:
-            raise ValueError("No active project selected")
+        """Search through context files in the current memory bank for the given query."""
+        memory_bank_info = await self.memory_bank_selector.get_current_memory_bank()
+        memory_bank_path = memory_bank_info["path"]
         
         file_mapping = {
             "projectbrief.md": "project_brief",
@@ -275,27 +676,31 @@ class ContextManager:
         results = {}
         
         for file_name, context_type in file_mapping.items():
-            content = await self.storage_manager.get_context_file(
-                self.current_project, 
-                file_name
-            )
-            
-            # Simple search implementation - can be improved
-            if query.lower() in content.lower():
-                lines = content.split('\n')
-                matching_lines = [
-                    line.strip() for line in lines 
-                    if query.lower() in line.lower()
-                ]
-                if matching_lines:
-                    results[context_type] = matching_lines
+            try:
+                content = await self.storage_manager.get_context_file(
+                    memory_bank_path, 
+                    file_name
+                )
+                
+                # Simple search implementation - can be improved
+                if query.lower() in content.lower():
+                    lines = content.split('\n')
+                    matching_lines = [
+                        line.strip() for line in lines 
+                        if query.lower() in line.lower()
+                    ]
+                    if matching_lines:
+                        results[context_type] = matching_lines
+            except Exception:
+                # Skip files with errors
+                pass
         
         return results
     
     async def get_all_context(self) -> Dict[str, str]:
-        """Get all context files for the current project."""
-        if not self.current_project:
-            raise ValueError("No active project selected")
+        """Get all context files from the current memory bank."""
+        memory_bank_info = await self.memory_bank_selector.get_current_memory_bank()
+        memory_bank_path = memory_bank_info["path"]
         
         file_mapping = {
             "project_brief": "projectbrief.md",
@@ -309,18 +714,42 @@ class ContextManager:
         result = {}
         
         for context_type, file_name in file_mapping.items():
-            content = await self.storage_manager.get_context_file(
-                self.current_project,
-                file_name
-            )
-            result[context_type] = content
+            try:
+                content = await self.storage_manager.get_context_file(
+                    memory_bank_path,
+                    file_name
+                )
+                result[context_type] = content
+            except Exception:
+                # Skip files with errors
+                result[context_type] = f"Error retrieving {context_type}"
         
         return result
+    
+    async def detect_repository(self, path: str) -> Optional[Dict[str, Any]]:
+        """Detect if a path is within a Git repository."""
+        return await self.memory_bank_selector.detect_repository(path)
+    
+    async def initialize_repository_memory_bank(self, repo_path: str, 
+                                           claude_project: Optional[str] = None) -> Dict[str, Any]:
+        """Initialize a repository memory bank."""
+        return await self.memory_bank_selector.initialize_repository_memory_bank(
+            repo_path, 
+            claude_project
+        )
+    
+    async def get_memory_banks(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all available memory banks."""
+        return await self.memory_bank_selector.get_all_memory_banks()
+    
+    async def get_current_memory_bank(self) -> Dict[str, Any]:
+        """Get information about the current memory bank."""
+        return await self.memory_bank_selector.get_current_memory_bank()
 ```
 
-## Step 4: Implement the MCP Server
+## Step 6: Implement the MCP Server
 
-Now let's implement the MCP server itself using the Python SDK:
+Now let's implement the MCP server with support for multiple memory banks:
 
 ```python
 # memory_bank_server/server.py
@@ -336,12 +765,15 @@ from mcp.server.models import InitializationOptions
 
 from .context_manager import ContextManager
 from .storage_manager import StorageManager
+from .memory_bank_selector import MemoryBankSelector
+from .repository_utils import RepositoryUtils
 
 class MemoryBankServer:
     def __init__(self, root_path: str):
         # Initialize managers
         self.storage_manager = StorageManager(root_path)
-        self.context_manager = ContextManager(self.storage_manager)
+        self.memory_bank_selector = MemoryBankSelector(self.storage_manager)
+        self.context_manager = ContextManager(self.storage_manager, self.memory_bank_selector)
         
         # Initialize MCP server
         self.server = Server(
@@ -426,10 +858,28 @@ class MemoryBankServer:
         async def get_all_context(uri: str) -> types.GetResourceResult:
             try:
                 contexts = await self.context_manager.get_all_context()
-                combined = "\n\n".join([
+                current_memory_bank = await self.context_manager.get_current_memory_bank()
+                
+                memory_bank_info = f"""# Memory Bank Information
+Type: {current_memory_bank['type']}
+"""
+                
+                if current_memory_bank['type'] == 'repository':
+                    repo_info = current_memory_bank.get('repo_info', {})
+                    memory_bank_info += f"""Repository: {repo_info.get('name', '')}
+Path: {repo_info.get('path', '')}
+Branch: {repo_info.get('branch', '')}
+"""
+                elif current_memory_bank['type'] == 'project':
+                    memory_bank_info += f"""Project: {current_memory_bank.get('project', '')}
+"""
+                
+                # Add memory bank info at the beginning
+                combined = memory_bank_info + "\n\n" + "\n\n".join([
                     f"# {key.replace('_', ' ').title()}\n\n{value}" 
                     for key, value in contexts.items()
                 ])
+                
                 return types.GetResourceResult(
                     contents=[
                         types.ResourceContent(
@@ -447,84 +897,138 @@ class MemoryBankServer:
                         )
                     ]
                 )
+        
+        @self.server.resource("memory-bank-info")
+        async def get_memory_bank_info(uri: str) -> types.GetResourceResult:
+            try:
+                current_memory_bank = await self.context_manager.get_current_memory_bank()
+                all_memory_banks = await self.context_manager.get_memory_banks()
+                
+                output = f"""# Memory Bank Information
+
+## Current Memory Bank
+Type: {current_memory_bank['type']}
+"""
+                
+                if current_memory_bank['type'] == 'repository':
+                    repo_info = current_memory_bank.get('repo_info', {})
+                    output += f"""Repository: {repo_info.get('name', '')}
+Path: {repo_info.get('path', '')}
+Branch: {repo_info.get('branch', '')}
+"""
+                    if 'project' in current_memory_bank:
+                        output += f"Associated Project: {current_memory_bank['project']}\n"
+                
+                elif current_memory_bank['type'] == 'project':
+                    output += f"Project: {current_memory_bank.get('project', '')}\n"
+                
+                output += "\n## Available Memory Banks\n"
+                
+                # Add global memory bank
+                output += "\n### Global Memory Bank\n"
+                output += f"Path: {all_memory_banks['global'][0]['path']}\n"
+                
+                # Add project memory banks
+                if all_memory_banks['projects']:
+                    output += "\n### Project Memory Banks\n"
+                    for project in all_memory_banks['projects']:
+                        output += f"- {project['name']}\n"
+                        if 'repository' in project.get('metadata', {}):
+                            output += f"  Repository: {project['metadata']['repository']}\n"
+                
+                # Add repository memory banks
+                if all_memory_banks['repositories']:
+                    output += "\n### Repository Memory Banks\n"
+                    for repo in all_memory_banks['repositories']:
+                        output += f"- {repo['name']} ({repo['repo_path']})\n"
+                        if repo.get('project'):
+                            output += f"  Associated Project: {repo['project']}\n"
+                
+                return types.GetResourceResult(
+                    contents=[
+                        types.ResourceContent(
+                            uri=uri,
+                            text=output
+                        )
+                    ]
+                )
+            except Exception as e:
+                return types.GetResourceResult(
+                    contents=[
+                        types.ResourceContent(
+                            uri=uri,
+                            text=f"Error retrieving memory bank information: {str(e)}"
+                        )
+                    ]
+                )
     
     def _register_tool_handlers(self):
         """Register tool handlers for the MCP server."""
-        @self.server.tool("create-project")
-        async def create_project(name: str, description: str) -> types.Result:
-            """Create a new project in the memory bank.
+        @self.server.tool("select-memory-bank")
+        async def select_memory_bank(
+            type: str = "global", 
+            project: Optional[str] = None, 
+            repository_path: Optional[str] = None
+        ) -> types.Result:
+            """Select which memory bank to use for the conversation.
             
             Args:
-                name: The name of the project to create
-                description: A brief description of the project
+                type: The type of memory bank to use ('global', 'project', or 'repository')
+                project: The name of the project (for 'project' type)
+                repository_path: The path to the repository (for 'repository' type)
             
             Returns:
-                A confirmation message
+                Information about the selected memory bank
             """
             try:
-                await self.context_manager.create_project(name, description)
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Project '{name}' created successfully."
+                if type == "global":
+                    memory_bank = await self.context_manager.set_memory_bank()
+                elif type == "project":
+                    if not project:
+                        return types.Result(
+                            content=[
+                                types.TextContent(
+                                    type="text",
+                                    text="Project name is required for project memory bank selection."
+                                )
+                            ]
                         )
-                    ]
-                )
-            except Exception as e:
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error creating project: {str(e)}"
+                    memory_bank = await self.context_manager.set_memory_bank(claude_project=project)
+                elif type == "repository":
+                    if not repository_path:
+                        return types.Result(
+                            content=[
+                                types.TextContent(
+                                    type="text",
+                                    text="Repository path is required for repository memory bank selection."
+                                )
+                            ]
                         )
-                    ]
-                )
-        
-        @self.server.tool("set-active-project")
-        async def set_active_project(name: str) -> types.Result:
-            """Set the active project.
-            
-            Args:
-                name: The name of the project to set as active
-            
-            Returns:
-                A confirmation message
-            """
-            try:
-                await self.context_manager.set_current_project(name)
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Project '{name}' is now the active project."
-                        )
-                    ]
-                )
-            except Exception as e:
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error setting active project: {str(e)}"
-                        )
-                    ]
-                )
-        
-        @self.server.tool("list-projects")
-        async def list_projects() -> types.Result:
-            """List all projects in the memory bank.
-            
-            Returns:
-                A list of projects with their metadata
-            """
-            try:
-                projects = await self.context_manager.get_projects()
-                result_text = "Projects:\n\n"
-                for project in projects:
-                    result_text += f"- {project['name']}: {project.get('description', 'No description')}\n"
-                    result_text += f"  Created: {project.get('created', 'Unknown')}\n"
-                    result_text += f"  Last Modified: {project.get('lastModified', 'Unknown')}\n\n"
+                    memory_bank = await self.context_manager.set_memory_bank(repository_path=repository_path)
+                else:
+                    return types.Result(
+                        content=[
+                            types.TextContent(
+                                type="text",
+                                text=f"Unknown memory bank type: {type}. Use 'global', 'project', or 'repository'."
+                            )
+                        ]
+                    )
+                
+                # Format result based on memory bank type
+                result_text = f"Selected memory bank: {memory_bank['type']}\n"
+                
+                if memory_bank['type'] == 'repository':
+                    repo_info = memory_bank.get('repo_info', {})
+                    result_text += f"Repository: {repo_info.get('name', '')}\n"
+                    result_text += f"Path: {repo_info.get('path', '')}\n"
+                    if repo_info.get('branch'):
+                        result_text += f"Branch: {repo_info.get('branch', '')}\n"
+                    if memory_bank.get('project'):
+                        result_text += f"Associated Project: {memory_bank['project']}\n"
+                
+                elif memory_bank['type'] == 'project':
+                    result_text += f"Project: {memory_bank.get('project', '')}\n"
                 
                 return types.Result(
                     content=[
@@ -539,14 +1043,245 @@ class MemoryBankServer:
                     content=[
                         types.TextContent(
                             type="text",
-                            text=f"Error listing projects: {str(e)}"
+                            text=f"Error selecting memory bank: {str(e)}"
+                        )
+                    ]
+                )
+        
+        @self.server.tool("create-project")
+        async def create_project(
+            name: str, 
+            description: str, 
+            repository_path: Optional[str] = None
+        ) -> types.Result:
+            """Create a new project in the memory bank.
+            
+            Args:
+                name: The name of the project to create
+                description: A brief description of the project
+                repository_path: Optional path to a Git repository to associate with the project
+            
+            Returns:
+                A confirmation message
+            """
+            try:
+                # Validate repository path if provided
+                if repository_path:
+                    if not RepositoryUtils.is_git_repository(repository_path):
+                        return types.Result(
+                            content=[
+                                types.TextContent(
+                                    type="text",
+                                    text=f"The path {repository_path} is not a valid Git repository."
+                                )
+                            ]
+                        )
+                
+                # Create project
+                project = await self.context_manager.create_project(name, description, repository_path)
+                
+                result_text = f"Project '{name}' created successfully.\n"
+                if repository_path:
+                    result_text += f"Associated with repository: {repository_path}\n"
+                result_text += "This memory bank is now selected for the current conversation."
+                
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=result_text
+                        )
+                    ]
+                )
+            except Exception as e:
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=f"Error creating project: {str(e)}"
+                        )
+                    ]
+                )
+        
+        @self.server.tool("list-memory-banks")
+        async def list_memory_banks() -> types.Result:
+            """List all available memory banks.
+            
+            Returns:
+                A list of available memory banks
+            """
+            try:
+                memory_banks = await self.context_manager.get_memory_banks()
+                current_memory_bank = await self.context_manager.get_current_memory_bank()
+                
+                result_text = "# Available Memory Banks\n\n"
+                
+                # Add current memory bank info
+                result_text += "## Current Memory Bank\n"
+                result_text += f"Type: {current_memory_bank['type']}\n"
+                
+                if current_memory_bank['type'] == 'repository':
+                    repo_info = current_memory_bank.get('repo_info', {})
+                    result_text += f"Repository: {repo_info.get('name', '')}\n"
+                    result_text += f"Path: {repo_info.get('path', '')}\n"
+                    if repo_info.get('branch'):
+                        result_text += f"Branch: {repo_info.get('branch', '')}\n"
+                    if current_memory_bank.get('project'):
+                        result_text += f"Associated Project: {current_memory_bank['project']}\n"
+                
+                elif current_memory_bank['type'] == 'project':
+                    result_text += f"Project: {current_memory_bank.get('project', '')}\n"
+                
+                # Add global memory bank
+                result_text += "\n## Global Memory Bank\n"
+                result_text += f"Path: {memory_banks['global'][0]['path']}\n"
+                
+                # Add project memory banks
+                if memory_banks['projects']:
+                    result_text += "\n## Project Memory Banks\n"
+                    for project in memory_banks['projects']:
+                        result_text += f"- {project['name']}\n"
+                        if 'repository' in project.get('metadata', {}):
+                            result_text += f"  Repository: {project['metadata']['repository']}\n"
+                
+                # Add repository memory banks
+                if memory_banks['repositories']:
+                    result_text += "\n## Repository Memory Banks\n"
+                    for repo in memory_banks['repositories']:
+                        result_text += f"- {repo['name']} ({repo['repo_path']})\n"
+                        if repo.get('project'):
+                            result_text += f"  Associated Project: {repo['project']}\n"
+                
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=result_text
+                        )
+                    ]
+                )
+            except Exception as e:
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=f"Error listing memory banks: {str(e)}"
+                        )
+                    ]
+                )
+        
+        @self.server.tool("detect-repository")
+        async def detect_repository(path: str) -> types.Result:
+            """Detect if a path is within a Git repository.
+            
+            Args:
+                path: The path to check
+            
+            Returns:
+                Information about the detected repository, if any
+            """
+            try:
+                repo_info = await self.context_manager.detect_repository(path)
+                
+                if not repo_info:
+                    return types.Result(
+                        content=[
+                            types.TextContent(
+                                type="text",
+                                text=f"No Git repository found at or above {path}."
+                            )
+                        ]
+                    )
+                
+                result_text = f"Git repository detected:\n"
+                result_text += f"Name: {repo_info.get('name', '')}\n"
+                result_text += f"Path: {repo_info.get('path', '')}\n"
+                
+                if repo_info.get('branch'):
+                    result_text += f"Branch: {repo_info.get('branch', '')}\n"
+                
+                if repo_info.get('remote_url'):
+                    result_text += f"Remote URL: {repo_info.get('remote_url', '')}\n"
+                
+                # Check if repository has a memory bank
+                memory_bank_path = repo_info.get('memory_bank_path', '')
+                if memory_bank_path and os.path.exists(memory_bank_path):
+                    result_text += f"Memory bank exists: Yes\n"
+                else:
+                    result_text += f"Memory bank exists: No\n"
+                    result_text += "Use the initialize-repository-memory-bank tool to create one."
+                
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=result_text
+                        )
+                    ]
+                )
+            except Exception as e:
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=f"Error detecting repository: {str(e)}"
+                        )
+                    ]
+                )
+        
+        @self.server.tool("initialize-repository-memory-bank")
+        async def initialize_repository_memory_bank(
+            repository_path: str, 
+            claude_project: Optional[str] = None
+        ) -> types.Result:
+            """Initialize a memory bank within a Git repository.
+            
+            Args:
+                repository_path: Path to the Git repository
+                claude_project: Optional Claude Desktop project to associate with this repository
+            
+            Returns:
+                Information about the initialized memory bank
+            """
+            try:
+                memory_bank = await self.context_manager.initialize_repository_memory_bank(
+                    repository_path, 
+                    claude_project
+                )
+                
+                result_text = f"Repository memory bank initialized:\n"
+                result_text += f"Path: {memory_bank['path']}\n"
+                
+                repo_info = memory_bank.get('repo_info', {})
+                result_text += f"Repository: {repo_info.get('name', '')}\n"
+                result_text += f"Repository path: {repo_info.get('path', '')}\n"
+                
+                if claude_project:
+                    result_text += f"Associated Claude project: {claude_project}\n"
+                
+                result_text += "This memory bank is now selected for the current conversation."
+                
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=result_text
+                        )
+                    ]
+                )
+            except Exception as e:
+                return types.Result(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=f"Error initializing repository memory bank: {str(e)}"
                         )
                     ]
                 )
         
         @self.server.tool("update-context")
         async def update_context(context_type: str, content: str) -> types.Result:
-            """Update a context file in the memory bank.
+            """Update a context file in the current memory bank.
             
             Args:
                 context_type: The type of context to update (project_brief, product_context, 
@@ -557,12 +1292,25 @@ class MemoryBankServer:
                 A confirmation message
             """
             try:
-                await self.context_manager.update_context(context_type, content)
+                memory_bank = await self.context_manager.update_context(context_type, content)
+                
+                result_text = f"Context '{context_type}' updated successfully in "
+                result_text += f"{memory_bank['type']} memory bank."
+                
+                if memory_bank['type'] == 'repository':
+                    repo_info = memory_bank.get('repo_info', {})
+                    result_text += f"\nRepository: {repo_info.get('name', '')}"
+                    if memory_bank.get('project'):
+                        result_text += f"\nAssociated Project: {memory_bank['project']}"
+                
+                elif memory_bank['type'] == 'project':
+                    result_text += f"\nProject: {memory_bank.get('project', '')}"
+                
                 return types.Result(
                     content=[
                         types.TextContent(
                             type="text",
-                            text=f"Context '{context_type}' updated successfully."
+                            text=result_text
                         )
                     ]
                 )
@@ -578,7 +1326,7 @@ class MemoryBankServer:
         
         @self.server.tool("search-context")
         async def search_context(query: str) -> types.Result:
-            """Search through context files for the given query.
+            """Search through context files in the current memory bank.
             
             Args:
                 query: The search term to look for in context files
@@ -588,17 +1336,33 @@ class MemoryBankServer:
             """
             try:
                 results = await self.context_manager.search_context(query)
+                current_memory_bank = await self.context_manager.get_current_memory_bank()
+                
                 if not results:
                     return types.Result(
                         content=[
                             types.TextContent(
                                 type="text",
-                                text=f"No results found for query: {query}"
+                                text=f"No results found for query: {query} in {current_memory_bank['type']} memory bank."
                             )
                         ]
                     )
                 
-                result_text = f"Search results for '{query}':\n\n"
+                result_text = f"Search results for '{query}' in {current_memory_bank['type']} memory bank:\n\n"
+                
+                # Add memory bank info
+                if current_memory_bank['type'] == 'repository':
+                    repo_info = current_memory_bank.get('repo_info', {})
+                    result_text += f"Repository: {repo_info.get('name', '')}\n"
+                    if current_memory_bank.get('project'):
+                        result_text += f"Associated Project: {current_memory_bank['project']}\n"
+                
+                elif current_memory_bank['type'] == 'project':
+                    result_text += f"Project: {current_memory_bank.get('project', '')}\n"
+                
+                result_text += "\n"
+                
+                # Add search results
                 for context_type, lines in results.items():
                     result_text += f"## {context_type.replace('_', ' ').title()}\n\n"
                     for line in lines:
@@ -655,6 +1419,9 @@ class MemoryBankServer:
 
 ## Stakeholders
 [List key stakeholders]
+
+## Repository
+[If applicable, specify the path to the Git repository]
 """
                     )
                 ]
@@ -684,6 +1451,29 @@ class MemoryBankServer:
 
 ## Notes
 [Any additional notes]
+"""
+                    )
+                ]
+            )
+        
+        @self.server.prompt("associate-repository")
+        def associate_repository() -> types.Prompt:
+            return types.Prompt(
+                name="Associate Repository",
+                description="Template for associating a repository with a project",
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text="""# Associate Repository with Project
+
+## Project Name
+[Enter the Claude Desktop project name]
+
+## Repository Path
+[Enter the absolute path to the Git repository]
+
+## Description
+[Briefly describe the repository and its relation to the project]
 """
                     )
                 ]
@@ -729,9 +1519,9 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## Step 5: Create the Entry Point
+## Step 7: Update the Entry Point
 
-Create the module's entry point in `__init__.py`:
+Update the module's entry point in `__init__.py`:
 
 ```python
 # memory_bank_server/__init__.py
@@ -745,38 +1535,9 @@ def main():
     asyncio.run(server.main())
 ```
 
-## Step 6: Set Up Package Configuration
+## Step 8: Configure Claude Desktop
 
-Create a setup.py file for the package:
-
-```python
-# setup.py
-from setuptools import setup, find_packages
-
-setup(
-    name="memory_bank_server",
-    version="0.1.0",
-    packages=find_packages(),
-    install_requires=[
-        "mcp",
-        "httpx",
-    ],
-    entry_points={
-        'console_scripts': [
-            'memory-bank-server=memory_bank_server:main',
-        ],
-    },
-)
-```
-
-## Step 7: Configure Claude Desktop
-
-To integrate with Claude Desktop, you'll need to add an entry to the Claude Desktop configuration file. The location of this file depends on your operating system:
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-Add the following configuration:
+To integrate with Claude Desktop, update the configuration in `claude_desktop_config.json`:
 
 ```json
 {
@@ -785,14 +1546,15 @@ Add the following configuration:
       "command": "python",
       "args": ["-m", "memory_bank_server"],
       "env": {
-        "MEMORY_BANK_ROOT": "/home/pjm/code/claude-desktop-memory-bank/storage"
+        "MEMORY_BANK_ROOT": "/home/pjm/code/claude-desktop-memory-bank/storage",
+        "ENABLE_REPO_DETECTION": "true"
       }
     }
   }
 }
 ```
 
-## Step 8: Install and Run
+## Step 9: Install and Run
 
 Install the package in development mode:
 
@@ -808,38 +1570,39 @@ After installation, you can run the server directly or let Claude Desktop start 
 memory-bank-server
 ```
 
-## Step 9: Using the Memory Bank in Claude Desktop
+## Using the Memory Bank with Multiple Sources
 
-Once the server is configured and Claude Desktop is restarted, you can interact with the Memory Bank using Claude Desktop:
+The server now supports three types of memory banks:
 
-1. **Create a Project**: Use the `create-project` tool to create a new project
-2. **Update Context**: Use the `update-context` tool to update context files
-3. **Search Context**: Use the `search-context` tool to search through context
-4. **Access Context**: Use resources like `project-brief` or `all-context` to retrieve context information
+1. **Global Memory Bank**: For general conversations
+   - Used when no specific project or repository is selected
+   - Stored in the main memory bank directory
 
-## Troubleshooting
+2. **Project Memory Banks**: For Claude Desktop projects
+   - Created for each Claude Desktop project
+   - Can be linked to Git repositories
 
-If you encounter issues:
+3. **Repository Memory Banks**: For code repositories
+   - Stored directly within Git repositories (`.claude-memory` directory)
+   - Can be associated with Claude Desktop projects
 
-1. **Check the Claude Desktop logs**:
-   - On macOS: `~/Library/Logs/Claude/mcp-server-memory-bank.log`
-   - On Windows: Check the Event Viewer or `%APPDATA%\Claude\logs`
+## Memory Bank Selection Workflow
 
-2. **Run the server manually** to see any error messages:
-   ```bash
-   python -m memory_bank_server
-   ```
+The memory bank selection follows this workflow:
 
-3. **Verify the configuration** in Claude Desktop's config file is correct
+1. When starting a conversation, the server checks:
+   - Is this conversation part of a Claude Desktop project?
+   - Does the project have an associated repository?
+   - If yes, use the repository's memory bank
+   - If no, ask if the user wants to use the global memory bank
 
-4. **Ensure all dependencies** are properly installed
+2. Users can explicitly select a memory bank using:
+   - `select-memory-bank` tool with parameters for type and path
+   - `detect-repository` tool to find a repository from a path
+   - `initialize-repository-memory-bank` tool to create a new repository memory bank
 
 ## Conclusion
 
-This implementation guide provides a practical approach to building a Claude Desktop Memory Bank using the Model Context Protocol. The implementation provides the core functionality needed to maintain context across sessions while following the standardized MCP architecture.
+This implementation guide provides a comprehensive approach to building a multi-source Claude Desktop Memory Bank using the Model Context Protocol. The implementation supports global, project-specific, and repository-embedded memory banks to meet various use cases.
 
-Future enhancements could include:
-- Advanced search capabilities using embeddings
-- User interface improvements
-- Integration with other data sources
-- Support for remote hosting when MCP adds this capability
+The system allows for seamless transitions between different memory bank types and provides tools for managing, searching, and updating context across all sources.

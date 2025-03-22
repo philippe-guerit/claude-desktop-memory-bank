@@ -12,29 +12,37 @@ MCP addresses the challenge of AI systems being isolated from data sources by pr
 
 ## System Architecture Overview
 
-The Memory Bank MCP server will follow the standard MCP architecture pattern:
+The Memory Bank MCP server follows the standard MCP architecture pattern, with support for multiple memory bank sources:
 
 ```mermaid
 flowchart TD
     Claude[Claude Desktop] <--> CMCP[Claude Memory Bank MCP Server]
-    CMCP <--> FS[File System]
+    CMCP <--> MemSelector[Memory Bank Selector]
     
-    subgraph Memory Bank
-        MS[Memory Storage]
-        TS[Tool Services]
-        PS[Prompt Services]
-    end
+    MemSelector --> Global[Global Memory Bank]
+    MemSelector --> Project[Project Memory Banks]
+    MemSelector --> Repo[Repository Memory Banks]
     
-    CMCP <--> Memory Bank
+    Global <--> GlobalFS[File System]
+    Project <--> ProjectFS[File System]
+    Repo <--> RepoFS[.claude-memory in Git Repos]
 ```
+
+## Memory Bank Types
+
+The system supports three types of memory banks:
+
+1. **Global Memory Bank**: Used for general conversations not associated with any specific project
+2. **Project Memory Banks**: Linked to Claude Desktop projects for project-specific conversations
+3. **Repository Memory Banks**: Located within Git repositories for code-related conversations
 
 ## Core Components
 
-The Claude Desktop Memory Bank MCP server will implement these core MCP capabilities:
+The Claude Desktop Memory Bank MCP server implements these core MCP capabilities:
 
 ### 1. Resources
 
-Resources in MCP are file-like data that can be read by clients. Our Memory Bank server will expose:
+Resources in MCP are file-like data that can be read by clients. Our Memory Bank server exposes:
 
 - **Project Brief Resource**: Provides high-level information about the current project
 - **Technical Context Resource**: Offers technical context about the project
@@ -44,33 +52,36 @@ Resources in MCP are file-like data that can be read by clients. Our Memory Bank
 ```mermaid
 flowchart LR
     Claude[Claude Desktop] --> RH[Resource Handler]
-    RH --> PB[Project Brief]
-    RH --> TC[Technical Context]
-    RH --> AC[Active Context]
-    RH --> P[Progress]
+    RH --> MBS[Memory Bank Selector]
+    MBS --> PB[Project Brief]
+    MBS --> TC[Technical Context]
+    MBS --> AC[Active Context]
+    MBS --> P[Progress]
 ```
 
 ### 2. Tools
 
-MCP Tools are functions that can be called by the LLM (with user approval). Our server will provide:
+MCP Tools are functions that can be called by the LLM (with user approval). Our server provides:
 
+- **Memory Bank Management Tools**: Select, initialize, and list available memory banks
 - **Update Context Tool**: Allows Claude to update the memory bank with new information
 - **Search Context Tool**: Enables searching through past context
-- **Add Memory Tool**: Lets Claude store new information in the memory bank
-- **Retrieve Memory Tool**: Allows Claude to fetch specific memories
+- **Project Management Tools**: Create and manage project-specific memory banks
+- **Repository Detection Tool**: Detect and initialize repository memory banks
 
 ```mermaid
 flowchart LR
     Claude[Claude Desktop] --> TH[Tool Handler]
+    TH --> MBM[Memory Bank Management]
     TH --> Update[Update Context]
     TH --> Search[Search Context]
-    TH --> Add[Add Memory]
-    TH --> Retrieve[Retrieve Memory]
+    TH --> Project[Project Management]
+    TH --> Repo[Repository Tools]
 ```
 
 ### 3. Prompts
 
-MCP Prompts are pre-written templates that help users interact with the server. Our server will include:
+MCP Prompts are pre-written templates that help users interact with the server:
 
 - **Project Brief Template**: Guide for creating an initial project brief
 - **Context Summary Template**: Format for summarizing current context
@@ -78,7 +89,7 @@ MCP Prompts are pre-written templates that help users interact with the server. 
 
 ## Data Structure
 
-The memory bank data will be organized in a structured way using markdown files:
+The memory bank data is organized in a structured way using markdown files. This structure is replicated across all memory bank types:
 
 ```mermaid
 flowchart TD
@@ -93,16 +104,72 @@ flowchart TD
     AC --> P[progress.md]
 ```
 
+## Storage Structure
+
+The file system structure accommodates multiple memory bank types:
+
+```
+memory-bank/
+├── global/                 # Global memory bank
+│   ├── projectbrief.md
+│   ├── productContext.md
+│   └── ...
+├── projects/               # Project-specific memory banks
+│   ├── project1/
+│   │   ├── projectbrief.md
+│   │   └── ...
+│   └── project2/
+│       ├── projectbrief.md
+│       └── ...
+└── repositories/           # Symlinks or records of git repositories
+    ├── repo1 -> /path/to/repo1/.claude-memory
+    └── repo2 -> /path/to/repo2/.claude-memory
+```
+
+For repositories, the actual memory bank files are stored within the repository itself:
+
+```
+repository/
+├── .claude-memory/         # Repository memory bank
+│   ├── projectbrief.md
+│   ├── productContext.md
+│   └── ...
+├── src/
+└── ...
+```
+
+## Memory Bank Selection
+
+The memory bank selection follows a systematic approach:
+
+```mermaid
+flowchart TD
+    Start[Start Conversation] --> Search[Search for repo path in Claude project docs]
+    Search --> Found{Found repo path?}
+    Found -->|Yes| UseRepo[Use repo memory bank]
+    Found -->|No| Suggest[Claude suggests global memory bank]
+    Suggest --> Ask{User approves?}
+    Ask -->|Yes| UseGlobal[Use global memory bank]
+    Ask -->|No| Instruct[Claude instructs to add repo path to project doc]
+    Instruct --> Restart[User restarts memory bank]
+```
+
+When Claude needs to select a memory bank, it:
+1. Checks if the conversation is associated with a Claude Desktop Project
+2. If yes, checks if the project has a configured repository path
+3. If a repository path exists, uses that repository's memory bank
+4. If no repository path exists, asks the user whether to use the global memory bank
+5. Provides instructions on how to associate a repository if desired
+
 ## Implementation Approach
 
 We'll implement the Claude Desktop Memory Bank using the official MCP Python SDK. The implementation will follow these steps:
 
 1. **Set up the MCP server framework**
-2. **Define resources to expose memory bank files**
-3. **Implement tools for context manipulation**
-4. **Add prompts for standardized interactions**
-5. **Implement file-based storage**
-6. **Design serialization/deserialization logic**
+2. **Implement memory bank selection logic**
+3. **Define resources to expose memory bank files**
+4. **Implement tools for context manipulation and memory bank selection**
+5. **Add prompts for standardized interactions**
 
 ## Server Implementation Details
 
@@ -118,39 +185,78 @@ classDiagram
         +run()
     }
     
+    class MemoryBankSelector {
+        +get_memory_bank(context)
+        +detect_repository(path)
+        +get_project_repository(project_name)
+        +initialize_memory_bank(path)
+    }
+    
     class ContextManager {
-        +get_context(context_type)
-        +update_context(context_type, content)
-        +search_context(query)
+        +get_context(memory_bank, context_type)
+        +update_context(memory_bank, context_type, content)
+        +search_context(memory_bank, query)
     }
     
     class StorageManager {
         +read_file(file_path)
         +write_file(file_path, content)
         +list_files()
+        +create_memory_bank(path)
     }
     
+    MemoryBankServer --> MemoryBankSelector
     MemoryBankServer --> ContextManager
-    MemoryBankServer --> StorageManager
+    MemoryBankSelector --> StorageManager
+    ContextManager --> StorageManager
 ```
 
-## Core Workflow
+## Core Workflows
 
-### Context Retrieval Workflow
+### Memory Bank Selection Workflow
 
 ```mermaid
 sequenceDiagram
     participant User
     participant CD as Claude Desktop
     participant MCP as Memory Bank MCP Server
-    participant FS as File System
+    participant MBS as Memory Bank Selector
     
-    User->>CD: Ask for context about project
-    CD->>MCP: Request context resources
-    MCP->>FS: Read context files
-    FS-->>MCP: Return file contents
-    MCP-->>CD: Provide formatted context
-    CD-->>User: Include context in response
+    User->>CD: Start conversation
+    CD->>MCP: Call select_memory_bank tool
+    MCP->>MBS: Check for repository in Claude project
+    MBS-->>MCP: Return memory bank selection
+    MCP-->>CD: Request user approval
+    CD-->>User: Explain memory bank selection
+    User->>CD: Approve selection
+    CD->>MCP: Confirm memory bank selection
+    MCP-->>CD: Memory bank selected
+```
+
+### Repository Detection Workflow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CD as Claude Desktop
+    participant MCP as Memory Bank MCP Server
+    participant MBS as Memory Bank Selector
+    participant Git as Git Repository
+    
+    User->>CD: Mention working in repository
+    CD->>MCP: Call detect_repository tool
+    MCP->>MBS: Check path for Git repository
+    MBS->>Git: Check for .git directory
+    Git-->>MBS: Confirm repository exists
+    MBS-->>MCP: Repository detected
+    MCP-->>CD: Repository information
+    CD-->>User: Ask to use repository memory bank
+    User->>CD: Approve
+    CD->>MCP: Call initialize_memory_bank tool
+    MCP->>Git: Create .claude-memory directory
+    Git-->>MCP: Memory bank initialized
+    MCP-->>CD: Confirmation
+    CD-->>User: Memory bank ready
 ```
 
 ### Context Update Workflow
@@ -160,61 +266,43 @@ sequenceDiagram
     participant User
     participant CD as Claude Desktop
     participant MCP as Memory Bank MCP Server
-    participant FS as File System
+    participant MB as Memory Bank
     
-    User->>CD: Review and update context
+    User->>CD: Update project context
     CD->>MCP: Call update_context tool
-    MCP->>MCP: Process update
-    MCP->>FS: Write updated files
-    FS-->>MCP: Confirm update
+    MCP->>MB: Process update
+    MB-->>MCP: Confirm update
     MCP-->>CD: Report successful update
     CD-->>User: Confirm context is updated
 ```
 
 ## Integration with Claude Desktop
 
-To integrate with Claude Desktop, we'll need to:
-
-1. Install the Claude Desktop application
-2. Create a configuration entry in `claude_desktop_config.json`
-3. Configure the Memory Bank server path
-
-Example configuration:
+To integrate with Claude Desktop, the configuration will include options for global and repository memory banks:
 
 ```json
 {
   "mcpServers": {
     "memory-bank": {
       "command": "python",
-      "args": ["-m", "memory_bank_server", "--root-dir", "/path/to/memory-bank"],
+      "args": ["-m", "memory_bank_server"],
       "env": {
-        "MEMORY_BANK_CONFIG": "/path/to/config.json"
+        "GLOBAL_MEMORY_PATH": "/path/to/global/memory",
+        "ENABLE_REPO_DETECTION": "true"
       }
     }
   }
 }
 ```
 
-## Implementation Plan
+## Repository Integration
 
-The implementation will follow these steps:
+For repository integration, we'll use Git to detect repositories and place memory banks directly within them:
 
-```mermaid
-gantt
-    title Memory Bank MCP Server Implementation
-    dateFormat  YYYY-MM-DD
-    section Setup
-    Project Setup               :a1, 2025-03-21, 2d
-    MCP SDK Integration         :a2, after a1, 1d
-    section Core
-    Storage Structure           :b1, after a2, 2d
-    Resource Implementation     :b2, after b1, 3d
-    Tool Implementation         :b3, after b2, 3d
-    section Integration
-    Claude Desktop Config       :c1, after b3, 1d
-    Testing & Debugging         :c2, after c1, 3d
-    Documentation               :c3, after c2, 2d
-```
+1. **Repository Detection**: Check for `.git` directories to identify repositories
+2. **Memory Bank Location**: Store memory banks in `.claude-memory` at the repository root
+3. **Path Resolution**: Support both absolute and relative paths to repositories
+4. **Project Association**: Allow linking Claude Desktop Projects to specific repositories
 
 ## Future Enhancements
 
@@ -223,11 +311,10 @@ After the initial implementation, we could consider these enhancements:
 1. **Advanced Context Selection**: Implement more sophisticated algorithms to select the most relevant context
 2. **Embedding-Based Search**: Use embeddings to improve context searching
 3. **Context Versioning**: Track changes to context over time
-4. **Multi-Project Support**: Handle multiple projects with separate memory banks
-5. **Remote Hosting**: Support for remote hosting when MCP supports it
+4. **Git Integration**: Store memory bank changes as Git commits
+5. **Collaborative Memory Banks**: Support for shared memory banks in team environments
+6. **Remote Hosting**: Support for remote hosting when MCP supports it
 
 ## Conclusion
 
-The Claude Desktop Memory Bank MCP server provides a standardized way for Claude to maintain context across sessions using the Model Context Protocol. By following the MCP specification, we ensure compatibility with Claude Desktop and potential future MCP clients.
-
-Unlike the original design which tried to mimic Cline Memory Bank through a custom architecture, this approach leverages the standardized MCP protocol while still achieving the goal of persistent context management for Claude Desktop.
+The Claude Desktop Memory Bank MCP server provides a standardized way for Claude to maintain context across sessions using the Model Context Protocol. The multi-memory bank approach (global, project, and repository) offers flexibility and better context management for different conversation scenarios.

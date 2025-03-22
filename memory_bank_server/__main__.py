@@ -1,11 +1,9 @@
 import sys
-from . import server
 from .utils import logger
+from . import server
 
-__all__ = ["server"]
-
-def main():
-    """Main entry point for the package."""
+if __name__ == "__main__":
+    """Entry point for running the package as a module."""
     import asyncio
     
     try:

@@ -1,66 +1,40 @@
 # Claude Desktop Memory Bank
 
-An MCP server that helps Claude Desktop maintain context across sessions, supporting global, project-specific, and repository-based memory banks.
+A Model Context Protocol (MCP) server for Claude Desktop that maintains context across sessions.
 
-## Overview
+## What is Claude Desktop Memory Bank?
 
-Claude Desktop Memory Bank is a Model Context Protocol (MCP) server that provides persistent memory capabilities across different contexts. It supports three types of memory banks:
+Claude Desktop Memory Bank is an MCP server that helps Claude Desktop maintain context and memory across sessions. It works by storing and organizing context in a structured format that Claude can access when needed.
 
+The system supports three types of memory banks:
 1. **Global Memory Bank**: For general conversations not tied to specific projects
 2. **Project Memory Banks**: Linked to Claude Desktop projects
-3. **Repository Memory Banks**: Located inside Git repositories (`.claude-memory` directories)
-
-```mermaid
-flowchart TD
-    Claude[Claude Desktop] <--> CMCP[Memory Bank MCP Server]
-    CMCP --> Global[Global Memory Bank]
-    CMCP --> Project[Project Memory Banks]
-    CMCP --> Repo[Repository Memory Banks]
-    
-    Repo --> RepoA[Repository A .claude-memory/]
-    Repo --> RepoB[Repository B .claude-memory/]
-```
-
-## Features
-
-- **Multi-Source Context Management**: Choose the right memory bank for your workflow
-- **Repository Integration**: Store context directly with your code in Git repositories
-- **Project-Based Organization**: Dedicated memory banks for Claude Desktop projects
-- **Global Context**: Maintain general knowledge across all conversations
-- **Smart Memory Bank Selection**: Automatically selects the appropriate memory bank based on context
-- **Repository Detection**: Identifies Git repositories and can initialize memory banks in them
-
-## How It Works
-
-The Memory Bank implements the MCP specification with specialized support for multiple memory sources:
-
-1. **Resources**: Project briefs, technical context, active context, and progress information
-2. **Tools**: Memory bank selection, repository detection, context management
-3. **Prompts**: Templates for project briefs, updates, and repository association
+3. **Repository Memory Banks**: Located inside Git repositories for code-related work
 
 ## Installation
 
 ### Prerequisites
 
-- Claude Desktop application
-- Python 3.8+
-- Node.js
+- Claude Desktop app installed
+- Python 3.8 or newer
 - Git (for repository memory banks)
 
-### Quick Start
+### Installation Steps
 
-1. Clone this repository:
+1. **Clone the repository**:
    ```bash
    git clone https://github.com/yourusername/claude-desktop-memory-bank.git
    cd claude-desktop-memory-bank
    ```
 
-2. Install the server:
+2. **Install the memory bank server**:
    ```bash
    pip install -e .
    ```
 
-3. Configure Claude Desktop (`claude_desktop_config.json`):
+3. **Configure Claude Desktop**:
+   
+   Locate the Claude Desktop configuration file and add the memory bank server configuration:
    ```json
    {
      "mcpServers": {
@@ -68,7 +42,7 @@ The Memory Bank implements the MCP specification with specialized support for mu
          "command": "python",
          "args": ["-m", "memory_bank_server"],
          "env": {
-           "MEMORY_BANK_ROOT": "/path/to/storage",
+           "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
            "ENABLE_REPO_DETECTION": "true"
          }
        }
@@ -76,52 +50,44 @@ The Memory Bank implements the MCP specification with specialized support for mu
    }
    ```
 
-4. Restart Claude Desktop
+4. **Restart Claude Desktop**
+
+## Features
+
+### Memory Bank Types
+
+- **Global Memory Bank**: For general context across all conversations
+- **Project Memory Banks**: Context linked to specific Claude Desktop projects
+- **Repository Memory Banks**: Context stored directly within Git repositories
+
+### MCP Resources
+
+- Project brief and context files
+- Technical documentation
+- Progress tracking
+- Active context updates
+
+### MCP Tools
+
+- Memory bank selection and management
+- Context search and updates
+- Repository detection and integration
+- Project creation and management
 
 ## Usage
 
-### Memory Bank Selection
+For detailed usage instructions, see the [Usage Guide](doc/usage-guide.md).
 
-The system automatically selects the appropriate memory bank:
+## Development
 
-- If working in a Claude Desktop project with an associated repository, uses the repository memory bank
-- If working in a Claude Desktop project without a repository, uses the project memory bank
-- For general conversations, uses the global memory bank
+For information on the architecture and implementation, see:
+- [MCP Design Documentation](doc/mcp-design.md)
+- [Implementation Guide](doc/implementation-guide.md)
 
-You can also explicitly select a memory bank:
+## MCP API
 
-```
-Please switch to the repository memory bank for /path/to/my/repo
-```
-
-### Repository Integration
-
-Store memory banks directly in your Git repositories:
-
-1. Tell Claude about your repository:
-   ```
-   I'm working on code in the repository at /path/to/repo
-   ```
-
-2. Initialize a memory bank:
-   ```
-   Please initialize a memory bank for this repository
-   ```
-
-3. Claude creates a `.claude-memory` directory with context files
-4. Memory bank files can be committed to Git for sharing
-
-## Documentation
-
-- [MCP Design Document](doc/mcp-design.md): Architecture overview with updated multi-source design
-- [Implementation Guide](doc/implementation-guide.md): Detailed developer documentation for all memory bank types
-- [Usage Guide](doc/usage-guide.md): Complete instructions for using different memory bank types
+This server implements the Model Context Protocol (MCP) to provide a standardized way for Claude to access and maintain context across sessions. The MCP specification defines a standard for resources, tools, and prompts that can be used by any MCP-compatible client.
 
 ## License
 
-[MIT License](LICENSE)
-
-## Acknowledgments
-
-- Inspired by Cline Memory Bank
-- Built on Model Context Protocol (MCP) by Anthropic
+This project is licensed under the MIT License - see the LICENSE file for details.

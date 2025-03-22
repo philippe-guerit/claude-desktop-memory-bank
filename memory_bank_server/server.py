@@ -1,11 +1,12 @@
 import os
 import json
 import asyncio
+import sys
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 import mcp.types as types
-from mcp.server import NotificationOptions, Server
+from mcp.server import FastMCP
 from mcp.server.models import InitializationOptions
 
 from .context_manager import ContextManager
@@ -24,9 +25,9 @@ class MemoryBankServer:
         self.context_manager = ContextManager(self.storage_manager, self.memory_bank_selector)
         
         # Initialize MCP server
-        self.server = Server(
+        self.server = FastMCP(
             name="memory-bank",
-            description="Memory Bank for Claude Desktop"
+            instructions="Memory Bank for Claude Desktop"
         )
         
         # Register handlers
@@ -36,77 +37,37 @@ class MemoryBankServer:
     
     def _register_resource_handlers(self):
         """Register resource handlers for the MCP server."""
-        @self.server.resource("project-brief")
-        async def get_project_brief(uri: str) -> types.GetResourceResult:
+        # Resources are registered directly with the FastMCP API
+        # No need for the resources/list handler as it's built-in to FastMCP
+        @self.server.resource("resource://project-brief", name="Project Brief", description="Current project brief")
+        async def get_project_brief() -> str:
             try:
                 context = await self.context_manager.get_context("project_brief")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=context
-                        )
-                    ]
-                )
+                return context
             except Exception as e:
                 logger.error(f"Error retrieving project brief: {str(e)}")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving project brief: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving project brief: {str(e)}"
         
-        @self.server.resource("active-context")
-        async def get_active_context(uri: str) -> types.GetResourceResult:
+        @self.server.resource("resource://active-context", name="Active Context", description="Active context for the current session")
+        async def get_active_context() -> str:
             try:
                 context = await self.context_manager.get_context("active_context")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=context
-                        )
-                    ]
-                )
+                return context
             except Exception as e:
                 logger.error(f"Error retrieving active context: {str(e)}")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving active context: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving active context: {str(e)}"
         
-        @self.server.resource("progress")
-        async def get_progress(uri: str) -> types.GetResourceResult:
+        @self.server.resource("resource://progress", name="Progress", description="Project progress notes")
+        async def get_progress() -> str:
             try:
                 context = await self.context_manager.get_context("progress")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=context
-                        )
-                    ]
-                )
+                return context
             except Exception as e:
                 logger.error(f"Error retrieving progress: {str(e)}")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving progress: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving progress: {str(e)}"
         
-        @self.server.resource("all-context")
-        async def get_all_context(uri: str) -> types.GetResourceResult:
+        @self.server.resource("resource://all-context", name="All Context", description="All context files combined")
+        async def get_all_context() -> str:
             try:
                 contexts = await self.context_manager.get_all_context()
                 current_memory_bank = await self.context_manager.get_current_memory_bank()
@@ -131,27 +92,13 @@ Branch: {repo_info.get('branch', '')}
                     for key, value in contexts.items()
                 ])
                 
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=combined
-                        )
-                    ]
-                )
+                return combined
             except Exception as e:
                 logger.error(f"Error retrieving all context: {str(e)}")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving all context: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving all context: {str(e)}"
         
-        @self.server.resource("memory-bank-info")
-        async def get_memory_bank_info(uri: str) -> types.GetResourceResult:
+        @self.server.resource("resource://memory-bank-info", name="Memory Bank Info", description="Information about the current memory bank")
+        async def get_memory_bank_info() -> str:
             try:
                 current_memory_bank = await self.context_manager.get_current_memory_bank()
                 all_memory_banks = await self.context_manager.get_memory_banks()
@@ -196,33 +143,19 @@ Branch: {repo_info.get('branch', '')}
                         if repo.get('project'):
                             output += f"  Associated Project: {repo['project']}\n"
                 
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=output
-                        )
-                    ]
-                )
+                return output
             except Exception as e:
                 logger.error(f"Error retrieving memory bank information: {str(e)}")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving memory bank information: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving memory bank information: {str(e)}"
     
     def _register_tool_handlers(self):
         """Register tool handlers for the MCP server."""
-        @self.server.tool("select-memory-bank")
+        @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
         async def select_memory_bank(
             type: str = "global", 
             project: Optional[str] = None, 
             repository_path: Optional[str] = None
-        ) -> types.Result:
+        ) -> str:
             """Select which memory bank to use for the conversation.
             
             Args:
@@ -240,35 +173,14 @@ Branch: {repo_info.get('branch', '')}
                     memory_bank = await self.context_manager.set_memory_bank()
                 elif type == "project":
                     if not project:
-                        return types.Result(
-                            content=[
-                                types.TextContent(
-                                    type="text",
-                                    text="Project name is required for project memory bank selection."
-                                )
-                            ]
-                        )
+                        return "Project name is required for project memory bank selection."
                     memory_bank = await self.context_manager.set_memory_bank(claude_project=project)
                 elif type == "repository":
                     if not repository_path:
-                        return types.Result(
-                            content=[
-                                types.TextContent(
-                                    type="text",
-                                    text="Repository path is required for repository memory bank selection."
-                                )
-                            ]
-                        )
+                        return "Repository path is required for repository memory bank selection."
                     memory_bank = await self.context_manager.set_memory_bank(repository_path=repository_path)
                 else:
-                    return types.Result(
-                        content=[
-                            types.TextContent(
-                                type="text",
-                                text=f"Unknown memory bank type: {type}. Use 'global', 'project', or 'repository'."
-                            )
-                        ]
-                    )
+                    return f"Unknown memory bank type: {type}. Use 'global', 'project', or 'repository'."
                 
                 # Format result based on memory bank type
                 result_text = f"Selected memory bank: {memory_bank['type']}\n"
@@ -285,31 +197,17 @@ Branch: {repo_info.get('branch', '')}
                 elif memory_bank['type'] == 'project':
                     result_text += f"Project: {memory_bank.get('project', '')}\n"
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error selecting memory bank: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error selecting memory bank: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error selecting memory bank: {str(e)}"
         
-        @self.server.tool("create-project")
+        @self.server.tool(name="create-project", description="Create a new project in the memory bank")
         async def create_project(
             name: str, 
             description: str, 
             repository_path: Optional[str] = None
-        ) -> types.Result:
+        ) -> str:
             """Create a new project in the memory bank.
             
             Args:
@@ -326,14 +224,7 @@ Branch: {repo_info.get('branch', '')}
                 # Validate repository path if provided
                 if repository_path:
                     if not RepositoryUtils.is_git_repository(repository_path):
-                        return types.Result(
-                            content=[
-                                types.TextContent(
-                                    type="text",
-                                    text=f"The path {repository_path} is not a valid Git repository."
-                                )
-                            ]
-                        )
+                        return f"The path {repository_path} is not a valid Git repository."
                 
                 # Create project
                 project = await self.context_manager.create_project(name, description, repository_path)
@@ -343,27 +234,13 @@ Branch: {repo_info.get('branch', '')}
                     result_text += f"Associated with repository: {repository_path}\n"
                 result_text += "This memory bank is now selected for the current conversation."
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error creating project: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error creating project: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error creating project: {str(e)}"
         
-        @self.server.tool("list-memory-banks")
-        async def list_memory_banks() -> types.Result:
+        @self.server.tool(name="list-memory-banks", description="List all available memory banks")
+        async def list_memory_banks() -> str:
             """List all available memory banks.
             
             Returns:
@@ -412,27 +289,13 @@ Branch: {repo_info.get('branch', '')}
                         if repo.get('project'):
                             result_text += f"  Associated Project: {repo['project']}\n"
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error listing memory banks: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error listing memory banks: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error listing memory banks: {str(e)}"
         
-        @self.server.tool("detect-repository")
-        async def detect_repository(path: str) -> types.Result:
+        @self.server.tool(name="detect-repository", description="Detect if a path is within a Git repository")
+        async def detect_repository(path: str) -> str:
             """Detect if a path is within a Git repository.
             
             Args:
@@ -446,14 +309,7 @@ Branch: {repo_info.get('branch', '')}
                 repo_info = await self.context_manager.detect_repository(path)
                 
                 if not repo_info:
-                    return types.Result(
-                        content=[
-                            types.TextContent(
-                                type="text",
-                                text=f"No Git repository found at or above {path}."
-                            )
-                        ]
-                    )
+                    return f"No Git repository found at or above {path}."
                 
                 result_text = f"Git repository detected:\n"
                 result_text += f"Name: {repo_info.get('name', '')}\n"
@@ -473,30 +329,16 @@ Branch: {repo_info.get('branch', '')}
                     result_text += f"Memory bank exists: No\n"
                     result_text += "Use the initialize-repository-memory-bank tool to create one."
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error detecting repository: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error detecting repository: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error detecting repository: {str(e)}"
         
-        @self.server.tool("initialize-repository-memory-bank")
+        @self.server.tool(name="initialize-repository-memory-bank", description="Initialize a memory bank within a Git repository")
         async def initialize_repository_memory_bank(
             repository_path: str, 
             claude_project: Optional[str] = None
-        ) -> types.Result:
+        ) -> str:
             """Initialize a memory bank within a Git repository.
             
             Args:
@@ -525,27 +367,13 @@ Branch: {repo_info.get('branch', '')}
                 
                 result_text += "This memory bank is now selected for the current conversation."
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error initializing repository memory bank: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error initializing repository memory bank: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error initializing repository memory bank: {str(e)}"
         
-        @self.server.tool("update-context")
-        async def update_context(context_type: str, content: str) -> types.Result:
+        @self.server.tool(name="update-context", description="Update a context file in the current memory bank")
+        async def update_context(context_type: str, content: str) -> str:
             """Update a context file in the current memory bank.
             
             Args:
@@ -572,27 +400,13 @@ Branch: {repo_info.get('branch', '')}
                 elif memory_bank['type'] == 'project':
                     result_text += f"\nProject: {memory_bank.get('project', '')}"
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error updating context: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error updating context: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error updating context: {str(e)}"
         
-        @self.server.tool("search-context")
-        async def search_context(query: str) -> types.Result:
+        @self.server.tool(name="search-context", description="Search through context files in the current memory bank")
+        async def search_context(query: str) -> str:
             """Search through context files in the current memory bank.
             
             Args:
@@ -607,14 +421,7 @@ Branch: {repo_info.get('branch', '')}
                 current_memory_bank = await self.context_manager.get_current_memory_bank()
                 
                 if not results:
-                    return types.Result(
-                        content=[
-                            types.TextContent(
-                                type="text",
-                                text=f"No results found for query: {query} in {current_memory_bank['type']} memory bank."
-                            )
-                        ]
-                    )
+                    return f"No results found for query: {query} in {current_memory_bank['type']} memory bank."
                 
                 result_text = f"Search results for '{query}' in {current_memory_bank['type']} memory bank:\n\n"
                 
@@ -637,36 +444,20 @@ Branch: {repo_info.get('branch', '')}
                         result_text += f"- {line}\n"
                     result_text += "\n"
                 
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=result_text
-                        )
-                    ]
-                )
+                return result_text
             except Exception as e:
                 logger.error(f"Error searching context: {str(e)}")
-                return types.Result(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=f"Error searching context: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error searching context: {str(e)}"
     
     def _register_prompt_handlers(self):
         """Register prompt handlers for the MCP server."""
-        @self.server.prompt("create-project-brief")
-        def create_project_brief() -> types.Prompt:
-            return types.Prompt(
-                name="Create Project Brief",
-                description="Template for creating a project brief",
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text="""# Project Brief Template
+        # No need to register a separate prompts/list handler in FastMCP
+        @self.server.prompt(name="create-project-brief", description="Template for creating a project brief")
+        def create_project_brief() -> list:
+            return [
+                {
+                    "role": "user",
+                    "content": """# Project Brief Template
 
 ## Project Name
 [Enter the project name here]
@@ -692,19 +483,15 @@ Branch: {repo_info.get('branch', '')}
 ## Repository
 [If applicable, specify the path to the Git repository]
 """
-                    )
-                ]
-            )
+                }
+            ]
         
-        @self.server.prompt("create-update")
-        def create_update() -> types.Prompt:
-            return types.Prompt(
-                name="Create Progress Update",
-                description="Template for updating project progress",
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text="""# Progress Update Template
+        @self.server.prompt(name="create-update", description="Template for updating project progress")
+        def create_update() -> list:
+            return [
+                {
+                    "role": "user",
+                    "content": """# Progress Update Template
 
 ## Completed
 [List recently completed items]
@@ -721,19 +508,15 @@ Branch: {repo_info.get('branch', '')}
 ## Notes
 [Any additional notes]
 """
-                    )
-                ]
-            )
+                }
+            ]
         
-        @self.server.prompt("associate-repository")
-        def associate_repository() -> types.Prompt:
-            return types.Prompt(
-                name="Associate Repository",
-                description="Template for associating a repository with a project",
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text="""# Associate Repository with Project
+        @self.server.prompt(name="associate-repository", description="Template for associating a repository with a project")
+        def associate_repository() -> list:
+            return [
+                {
+                    "role": "user",
+                    "content": """# Associate Repository with Project
 
 ## Project Name
 [Enter the Claude Desktop project name]
@@ -744,9 +527,8 @@ Branch: {repo_info.get('branch', '')}
 ## Description
 [Briefly describe the repository and its relation to the project]
 """
-                    )
-                ]
-            )
+                }
+            ]
     
     async def initialize(self) -> None:
         """Initialize the server."""
@@ -757,27 +539,19 @@ Branch: {repo_info.get('branch', '')}
         """Run the server."""
         logger.info("Starting Memory Bank server")
         
-        # Import here to avoid circular imports
-        import mcp.server.stdio
-        
-        # Initialize the server
-        await self.initialize()
-        
-        # Run the server using stdin/stdout streams
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        try:
+            # Initialize the server
+            await self.initialize()
+            
+            # Run the server
             logger.info("Memory Bank server running")
-            await self.server.run(
-                read_stream, 
-                write_stream,
-                InitializationOptions(
-                    server_name="memory-bank",
-                    server_version="0.1.0",
-                    capabilities=self.server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+            await self.server.run_stdio_async()
+        except Exception as e:
+            # Log any unexpected errors to stderr to help with debugging
+            import sys
+            print(f"Memory Bank server error: {str(e)}", file=sys.stderr)
+            logger.error(f"Memory Bank server error: {str(e)}", exc_info=True)
+            raise  # Re-raise the exception to properly exit the server
 
 # Main entry point
 async def main():
@@ -786,9 +560,16 @@ async def main():
     
     logger.info(f"Starting Memory Bank MCP server with root path: {root_path}")
     
-    # Create and run the server
-    server = MemoryBankServer(root_path)
-    await server.run()
+    try:
+        # Create and run the server
+        server = MemoryBankServer(root_path)
+        await server.run()
+    except KeyboardInterrupt:
+        logger.info("Server interrupted by user")
+    except Exception as e:
+        print(f"Fatal error in Memory Bank MCP server: {str(e)}", file=sys.stderr)
+        logger.error(f"Fatal error in Memory Bank MCP server: {str(e)}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

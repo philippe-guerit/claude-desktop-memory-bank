@@ -760,7 +760,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 import mcp.types as types
-from mcp.server import NotificationOptions, Server
+from mcp.server import FastMCP
 from mcp.server.models import InitializationOptions
 
 from .context_manager import ContextManager
@@ -775,10 +775,10 @@ class MemoryBankServer:
         self.memory_bank_selector = MemoryBankSelector(self.storage_manager)
         self.context_manager = ContextManager(self.storage_manager, self.memory_bank_selector)
         
-        # Initialize MCP server
-        self.server = Server(
+        # Initialize MCP server using FastMCP API
+        self.server = FastMCP(
             name="memory-bank",
-            description="Memory Bank for Claude Desktop"
+            instructions="Memory Bank for Claude Desktop"
         )
         
         # Register handlers
@@ -788,27 +788,13 @@ class MemoryBankServer:
     
     def _register_resource_handlers(self):
         """Register resource handlers for the MCP server."""
-        @self.server.resource("project-brief")
-        async def get_project_brief(uri: str) -> types.GetResourceResult:
+        @self.server.resource("resource://project-brief", name="Project Brief", description="Current project brief")
+        async def get_project_brief() -> str:
             try:
                 context = await self.context_manager.get_context("project_brief")
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=context
-                        )
-                    ]
-                )
+                return context
             except Exception as e:
-                return types.GetResourceResult(
-                    contents=[
-                        types.ResourceContent(
-                            uri=uri,
-                            text=f"Error retrieving project brief: {str(e)}"
-                        )
-                    ]
-                )
+                return f"Error retrieving project brief: {str(e)}"
         
         @self.server.resource("active-context")
         async def get_active_context(uri: str) -> types.GetResourceResult:
@@ -964,12 +950,12 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_tool_handlers(self):
         """Register tool handlers for the MCP server."""
-        @self.server.tool("select-memory-bank")
+        @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
         async def select_memory_bank(
             type: str = "global", 
             project: Optional[str] = None, 
             repository_path: Optional[str] = None
-        ) -> types.Result:
+        ) -> str:
             """Select which memory bank to use for the conversation.
             
             Args:
@@ -1389,15 +1375,12 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_prompt_handlers(self):
         """Register prompt handlers for the MCP server."""
-        @self.server.prompt("create-project-brief")
-        def create_project_brief() -> types.Prompt:
-            return types.Prompt(
-                name="Create Project Brief",
-                description="Template for creating a project brief",
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text="""# Project Brief Template
+        @self.server.prompt(name="create-project-brief", description="Template for creating a project brief")
+        def create_project_brief() -> list:
+            return [
+                {
+                    "role": "user",
+                    "content": """# Project Brief Template
 
 ## Project Name
 [Enter the project name here]
@@ -1423,9 +1406,8 @@ Branch: {repo_info.get('branch', '')}
 ## Repository
 [If applicable, specify the path to the Git repository]
 """
-                    )
-                ]
-            )
+                }
+            ]
         
         @self.server.prompt("create-update")
         def create_update() -> types.Prompt:
@@ -1485,26 +1467,17 @@ Branch: {repo_info.get('branch', '')}
     
     async def run(self) -> None:
         """Run the server."""
-        # Import here to avoid circular imports
-        import mcp.server.stdio
-        
-        # Initialize the server
-        await self.initialize()
-        
-        # Run the server using stdin/stdout streams
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream, 
-                write_stream,
-                InitializationOptions(
-                    server_name="memory-bank",
-                    server_version="0.1.0",
-                    capabilities=self.server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+        try:
+            # Initialize the server
+            await self.initialize()
+            
+            # Run the server
+            await self.server.run_stdio_async()
+        except Exception as e:
+            # Log any unexpected errors to stderr to help with debugging
+            import sys
+            print(f"Memory Bank server error: {str(e)}", file=sys.stderr)
+            raise  # Re-raise the exception to properly exit the server
 
 # Main entry point
 async def main():
@@ -1519,20 +1492,58 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## Step 7: Update the Entry Point
+## Step 7: Create a Module Entry Point
 
-Update the module's entry point in `__init__.py`:
+Create a `__main__.py` file to allow the package to be executed directly:
+
+```python
+# memory_bank_server/__main__.py
+import sys
+from .utils import logger
+from . import server
+
+if __name__ == "__main__":
+    """Entry point for running the package as a module."""
+    import asyncio
+    
+    try:
+        # Print startup message to stderr for debugging
+        print("Starting Memory Bank MCP server...", file=sys.stderr)
+        
+        # Run the server
+        asyncio.run(server.main())
+    except Exception as e:
+        # Log any uncaught exceptions
+        print(f"Error in Memory Bank MCP server: {str(e)}", file=sys.stderr)
+        logger.error(f"Error in Memory Bank MCP server: {str(e)}", exc_info=True)
+        sys.exit(1)
+```
+
+Also update the module's entry point in `__init__.py`:
 
 ```python
 # memory_bank_server/__init__.py
+import sys
 from . import server
+from .utils import logger
 
 __all__ = ["server"]
 
 def main():
     """Main entry point for the package."""
     import asyncio
-    asyncio.run(server.main())
+    
+    try:
+        # Print startup message to stderr for debugging
+        print("Starting Memory Bank MCP server...", file=sys.stderr)
+        
+        # Run the server
+        asyncio.run(server.main())
+    except Exception as e:
+        # Log any uncaught exceptions
+        print(f"Error in Memory Bank MCP server: {str(e)}", file=sys.stderr)
+        logger.error(f"Error in Memory Bank MCP server: {str(e)}", exc_info=True)
+        sys.exit(1)
 ```
 
 ## Step 8: Configure Claude Desktop

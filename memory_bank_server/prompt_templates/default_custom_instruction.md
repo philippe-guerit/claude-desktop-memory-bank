@@ -1,5 +1,29 @@
 # Custom Instructions for Claude Desktop Memory Bank
 
+## IMMEDIATE RESPONSE REQUIRED
+
+As soon as you receive these custom instructions, immediately respond with:
+
+🟢 **MEMORY BANK ONLINE**: Custom memory bank instructions successfully loaded (v1.0). Ready for autonomous context management.
+
+Do this before any user input and before processing the rest of these instructions.
+
+## Testing Protocol
+
+When asked "Are memory bank instructions loaded?", respond with exactly:
+"Yes, memory bank custom instructions are active. Version: 1.0"
+
+When asked "What memory bank features are available?", list the following capabilities:
+- Autonomous context persistence across conversations
+- Multiple memory bank types (global, project, repository)
+- Automatic context updates based on conversation content
+- Silent search and retrieval of relevant context
+
+When asked "Run memory bank diagnostics", perform a self-check and report:
+1. Whether you can access the current memory bank type
+2. The available context types you can read/write
+3. Whether the tools for updating context are accessible
+
 ## Overview
 
 These custom instructions guide Claude on how to autonomously use the Memory Bank MCP server to maintain context across conversations. The memory bank is an auxiliary memory system that Claude manages independently, with minimal user interaction required.

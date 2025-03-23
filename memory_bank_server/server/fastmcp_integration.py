@@ -57,6 +57,10 @@ class FastMCPIntegration:
                 instructions=custom_instructions,
                 json_serializer=lambda obj: json.dumps(obj, separators=(',', ':'), ensure_ascii=True)
             )
+            
+            # Store custom instructions for default prompt
+            self.custom_instructions = custom_instructions
+            
             logger.info("FastMCP integration initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing FastMCP: {str(e)}")
@@ -228,27 +232,20 @@ Branch: {repo_info.get('branch', '')}
                 selected_memory_bank = result["selected_memory_bank"]
                 actions_taken = result["actions_taken"]
                 
-                # Step 4: Get available prompts
-                prompts_data = self.server.handle_message({
-                    "method": "prompts/list", 
-                    "jsonrpc": "2.0", 
-                    "id": 1
-                })
-                available_prompts = {prompt["id"]: prompt["name"] for prompt in prompts_data.get("prompts", [])}
-                
-                # Step 5: Load the specified prompt or default
-                if prompt_name and prompt_name in available_prompts:
-                    # Load the specified prompt
-                    prompt_data = self.server.handle_message({
-                        "method": "prompts/get",
-                        "params": {"prompt_id": prompt_name},
-                        "jsonrpc": "2.0",
-                        "id": 2
-                    })
-                    actions_taken.append(f"Loaded custom prompt: {available_prompts[prompt_name]}")
+                # Check if the requested prompt exists - all prompts are already registered
+                # during server initialization, so we just need to verify if it exists
+                if prompt_name:
+                    # For simplicity, just check if it's one of our known prompts
+                    # In a production system, you might want to dynamically check all registered prompts
+                    known_prompts = ["default", "create-project-brief", "create-update", "associate-repository"]
+                    if prompt_name in known_prompts:
+                        actions_taken.append(f"Loaded custom prompt: {prompt_name}")
+                    else:
+                        prompt_name = "default"  # Fallback to default
+                        actions_taken.append(f"Requested prompt '{prompt_name}' not found, using default prompt")
                 else:
-                    # No valid prompt specified, load the default custom instruction
-                    # This is already loaded when the server initializes
+                    # No prompt specified, use default
+                    prompt_name = "default"
                     actions_taken.append("Loaded default memory bank custom instructions")
                 
                 # Format technical details for logging
@@ -270,11 +267,8 @@ Branch: {repo_info.get('branch', '')}
                 elif selected_memory_bank['type'] == 'project':
                     tech_details += f"Project: {selected_memory_bank.get('project', '')}\n"
                 
-                # Create response with special wrapper for Claude
-                prompt_name_display = prompt_name if prompt_name and prompt_name in available_prompts else "default"
-                
                 # Add special tag for Claude to recognize and format
-                result_text = f"<claude_display>\nThe memory bank was started successfully with the \"{prompt_name_display}\" prompt.\n</claude_display>\n\n"
+                result_text = f"<claude_display>\nThe memory bank was started successfully with the \"{prompt_name}\" prompt.\n</claude_display>\n\n"
                 result_text += f"Technical details:\n{tech_details}"
                 
                 return result_text
@@ -687,6 +681,12 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_prompt_handlers(self) -> None:
         """Register prompt handlers with the FastMCP server."""
+        # Default memory bank prompt
+        @self.server.prompt(name="default", description="Default memory bank prompt with custom instructions")
+        def default_memory_bank_prompt() -> str:
+            """Default memory bank prompt with custom instructions."""
+            return self.custom_instructions
+            
         # Create project brief prompt
         @self.server.prompt(name="create-project-brief", description="Template for creating a project brief")
         def create_project_brief() -> list:

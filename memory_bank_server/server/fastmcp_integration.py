@@ -232,21 +232,63 @@ Branch: {repo_info.get('branch', '')}
                 selected_memory_bank = result["selected_memory_bank"]
                 actions_taken = result["actions_taken"]
                 
-                # Check if the requested prompt exists - all prompts are already registered
-                # during server initialization, so we just need to verify if it exists
+                # Actually retrieve and apply the prompt content using the standard MCP Prompt API
                 if prompt_name:
-                    # For simplicity, just check if it's one of our known prompts
-                    # In a production system, you might want to dynamically check all registered prompts
-                    known_prompts = ["default", "create-project-brief", "create-update", "associate-repository"]
-                    if prompt_name in known_prompts:
-                        actions_taken.append(f"Loaded custom prompt: {prompt_name}")
-                    else:
-                        prompt_name = "default"  # Fallback to default
-                        actions_taken.append(f"Requested prompt '{prompt_name}' not found, using default prompt")
+                    logger.info(f"Attempting to load prompt content for: {prompt_name}")
+                    
+                    try:
+                        # Import MCP types needed for prompt handling
+                        import mcp.types as types
+                        
+                        # Get the prompt handler from the server
+                        prompt_handler = self.server.get_prompt_handler()
+                        
+                        if prompt_handler:
+                            # Call the handler with the prompt name and empty arguments
+                            result = await prompt_handler(prompt_name, None)
+                            
+                            if isinstance(result, types.GetPromptResult):
+                                # Successfully got prompt result, now extract content
+                                prompt_content = None
+                                
+                                # Extract content from messages
+                                if result.messages and len(result.messages) > 0:
+                                    for message in result.messages:
+                                        if hasattr(message, 'role') and message.role == 'user':
+                                            if hasattr(message, 'content'):
+                                                content = message.content
+                                                if hasattr(content, 'type') and content.type == 'text':
+                                                    if hasattr(content, 'text'):
+                                                        prompt_content = content.text
+                                                        break
+                                
+                                if prompt_content:
+                                    # Update the server's instructions with the prompt content
+                                    self.custom_instructions = prompt_content
+                                    self.server.instructions = prompt_content
+                                    logger.info(f"Successfully loaded and applied prompt: {prompt_name}")
+                                    actions_taken.append(f"Loaded and applied custom prompt: {prompt_name}")
+                                else:
+                                    logger.warning(f"Failed to extract content from prompt: {prompt_name}")
+                                    prompt_name = "default"
+                                    actions_taken.append(f"Failed to extract content from prompt, using default prompt")
+                            else:
+                                logger.warning(f"Unexpected result type from prompt handler: {type(result)}")
+                                prompt_name = "default"
+                                actions_taken.append(f"Error retrieving prompt content, using default prompt")
+                        else:
+                            logger.warning("No prompt handler available")
+                            prompt_name = "default"
+                            actions_taken.append("No prompt handler available, using default prompt")
+                            
+                    except Exception as e:
+                        logger.error(f"Error retrieving prompt content: {str(e)}")
+                        prompt_name = "default"
+                        actions_taken.append(f"Error retrieving prompt: {str(e)}, using default prompt")
                 else:
                     # No prompt specified, use default
                     prompt_name = "default"
-                    actions_taken.append("Loaded default memory bank custom instructions")
+                    actions_taken.append("Using default memory bank custom instructions")
                 
                 # Format technical details for logging
                 tech_details = "Actions performed:\n"
@@ -267,9 +309,34 @@ Branch: {repo_info.get('branch', '')}
                 elif selected_memory_bank['type'] == 'project':
                     tech_details += f"Project: {selected_memory_bank.get('project', '')}\n"
                 
+                # Get the actual content of the prompt to return directly in the response
+                prompt_content = None
+                if prompt_name == "default":
+                    with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_templates", "default_custom_instruction.md"), 'r', encoding='utf-8') as f:
+                        prompt_content = f.read()
+                elif prompt_name == "create-project-brief" and hasattr(self, 'create_project_brief'):
+                    result = self.create_project_brief()
+                    if isinstance(result, list) and result and 'content' in result[0]:
+                        prompt_content = result[0]['content']
+                elif prompt_name == "create-update" and hasattr(self, 'create_update'):
+                    result = self.create_update()
+                    if isinstance(result, list) and result and 'content' in result[0]:
+                        prompt_content = result[0]['content']
+                elif prompt_name == "associate-repository" and hasattr(self, 'associate_repository'):
+                    result = self.associate_repository()
+                    if isinstance(result, list) and result and 'content' in result[0]:
+                        prompt_content = result[0]['content']
+                
                 # Add special tag for Claude to recognize and format
                 result_text = f"<claude_display>\nThe memory bank was started successfully with the \"{prompt_name}\" prompt.\n</claude_display>\n\n"
-                result_text += f"Technical details:\n{tech_details}"
+                
+                # Add technical details
+                result_text += f"Technical details:\n{tech_details}\n\n"
+                
+                # Add the actual prompt content directly in the response
+                if prompt_content:
+                    result_text += "Custom instructions applied:\n\n"
+                    result_text += prompt_content
                 
                 return result_text
             except Exception as e:
@@ -681,11 +748,14 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_prompt_handlers(self) -> None:
         """Register prompt handlers with the FastMCP server."""
-        # Default memory bank prompt
+        # Default memory bank prompt - store reference to function
         @self.server.prompt(name="default", description="Default memory bank prompt with custom instructions")
         def default_memory_bank_prompt() -> str:
             """Default memory bank prompt with custom instructions."""
             return self.custom_instructions
+        
+        # Store reference to the function
+        self.default_memory_bank_prompt = default_memory_bank_prompt
             
         # Create project brief prompt
         @self.server.prompt(name="create-project-brief", description="Template for creating a project brief")
@@ -722,6 +792,9 @@ Branch: {repo_info.get('branch', '')}
                 }
             ]
         
+        # Store reference to the function
+        self.create_project_brief = create_project_brief
+        
         # Create update prompt
         @self.server.prompt(name="create-update", description="Template for updating project progress")
         def create_update() -> list:
@@ -748,6 +821,9 @@ Branch: {repo_info.get('branch', '')}
                 }
             ]
         
+        # Store reference to the function
+        self.create_update = create_update
+        
         # Associate repository prompt
         @self.server.prompt(name="associate-repository", description="Template for associating a repository with a project")
         def associate_repository() -> list:
@@ -767,6 +843,9 @@ Branch: {repo_info.get('branch', '')}
 """
                 }
             ]
+        
+        # Store reference to the function
+        self.associate_repository = associate_repository
     
     async def run(self) -> None:
         """Run the FastMCP server."""

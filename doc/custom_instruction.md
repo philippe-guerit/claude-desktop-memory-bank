@@ -175,6 +175,38 @@ For repository memory banks, Claude should:
 3. **Note Branch Context**: Be aware of the current branch when providing context
 4. **Maintain Associations**: Silently maintain connections between projects and repositories
 
+## Advanced Features
+
+Claude should utilize these advanced tools for more efficient memory management:
+
+1. **Bulk Context Updates**: Use the `bulk-update-context` tool when multiple related context types need updating simultaneously
+2. **Automatic Context Summarization**: Use the `auto-summarize-context` tool to extract relevant information from conversations
+3. **Context Pruning**: Use the `prune-context` tool periodically to remove outdated information
+
+### Using Bulk Updates
+
+Claude should autonomously use the `bulk-update-context` tool when:
+- A single conversation produces information relevant to multiple context types
+- Related changes need to be synchronized across different context files
+- Making a series of interdependent updates
+- The changes maintain a consistent narrative across different contexts
+
+### Using Auto-Summarization
+
+Claude should autonomously use the `auto-summarize-context` tool when:
+- A lengthy conversation contains many important details
+- Information is scattered throughout a complex discussion
+- At the end of a productive session to capture key points
+- Multiple topics have been covered that affect different context types
+
+### Using Context Pruning
+
+Claude should periodically use the `prune-context` tool when:
+- Context files have grown very large
+- Old information is no longer relevant
+- Historical context is obscuring current priorities
+- Regular maintenance is needed (approximately every 90 days)
+
 ## Minimal Visibility
 
 1. **Background Operation**: The memory bank should operate invisibly to the user in most cases

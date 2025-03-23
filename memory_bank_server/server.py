@@ -469,6 +469,131 @@ Branch: {repo_info.get('branch', '')}
             except Exception as e:
                 logger.error(f"Error searching context: {str(e)}")
                 return f"Error searching context: {str(e)}"
+                
+        @self.server.tool(name="bulk-update-context", description="Update multiple context files in one operation")
+        async def bulk_update_context(updates: Dict[str, str]) -> str:
+            """Update multiple context files in one operation.
+            
+            Args:
+                updates: Dictionary mapping context types to content
+                  - Keys can be: project_brief, product_context, system_patterns, 
+                                tech_context, active_context, progress
+                  - Values are the new content for each context file
+            
+            Returns:
+                A confirmation message
+            """
+            try:
+                logger.info(f"Bulk updating context with {len(updates)} updates")
+                memory_bank = await self.context_manager.bulk_update_context(updates)
+                
+                result_text = f"Successfully updated {len(updates)} context files in "
+                result_text += f"{memory_bank['type']} memory bank.\n\n"
+                result_text += f"Updated context types: {', '.join(updates.keys())}"
+                
+                if memory_bank['type'] == 'repository':
+                    repo_info = memory_bank.get('repo_info', {})
+                    result_text += f"\nRepository: {repo_info.get('name', '')}"
+                    if memory_bank.get('project'):
+                        result_text += f"\nAssociated Project: {memory_bank['project']}"
+                
+                elif memory_bank['type'] == 'project':
+                    result_text += f"\nProject: {memory_bank.get('project', '')}"
+                
+                return result_text
+            except Exception as e:
+                logger.error(f"Error bulk updating context: {str(e)}")
+                return f"Error bulk updating context: {str(e)}"
+                
+        @self.server.tool(name="auto-summarize-context", description="Automatically extract and update context from conversation")
+        async def auto_summarize_context(conversation_text: str) -> str:
+            """Extract relevant information from conversation and update context automatically.
+            
+            Args:
+                conversation_text: Text of the conversation to summarize
+            
+            Returns:
+                Summary of updates made
+            """
+            try:
+                logger.info("Auto-summarizing context from conversation")
+                suggested_updates = await self.context_manager.auto_summarize_context(conversation_text)
+                
+                if not suggested_updates:
+                    return "No relevant information found to update context."
+                
+                # Apply all suggested updates
+                memory_bank = await self.context_manager.bulk_update_context(suggested_updates)
+                
+                result_text = f"Successfully extracted and updated {len(suggested_updates)} context files:\n\n"
+                
+                # List what was updated
+                for context_type in suggested_updates.keys():
+                    result_text += f"- {context_type.replace('_', ' ').title()}\n"
+                
+                # Add memory bank info
+                result_text += f"\nUpdates applied to {memory_bank['type']} memory bank."
+                
+                if memory_bank['type'] == 'repository':
+                    repo_info = memory_bank.get('repo_info', {})
+                    result_text += f"\nRepository: {repo_info.get('name', '')}"
+                    if memory_bank.get('project'):
+                        result_text += f"\nAssociated Project: {memory_bank['project']}"
+                
+                elif memory_bank['type'] == 'project':
+                    result_text += f"\nProject: {memory_bank.get('project', '')}"
+                
+                return result_text
+            except Exception as e:
+                logger.error(f"Error auto-summarizing context: {str(e)}")
+                return f"Error auto-summarizing context: {str(e)}"
+                
+        @self.server.tool(name="prune-context", description="Remove outdated information from context files")
+        async def prune_context(max_age_days: int = 90) -> str:
+            """Remove outdated information from context files.
+            
+            Args:
+                max_age_days: Maximum age of content to retain (in days, default: 90)
+            
+            Returns:
+                Summary of pruning results
+            """
+            try:
+                logger.info(f"Pruning context older than {max_age_days} days")
+                pruning_results = await self.context_manager.prune_context(max_age_days)
+                
+                if not pruning_results:
+                    return "No outdated content found to prune."
+                
+                current_memory_bank = await self.context_manager.get_current_memory_bank()
+                
+                result_text = f"Pruning results for {current_memory_bank['type']} memory bank:\n\n"
+                
+                pruned_total = 0
+                kept_total = 0
+                
+                # Add details for each context type
+                for context_type, result in pruning_results.items():
+                    if "error" in result:
+                        result_text += f"- {context_type.replace('_', ' ').title()}: Error - {result['error']}\n"
+                    else:
+                        pruned = result.get("pruned_sections", 0)
+                        kept = result.get("kept_sections", 0)
+                        
+                        if pruned > 0:
+                            result_text += f"- {context_type.replace('_', ' ').title()}: Pruned {pruned} sections, kept {kept} sections\n"
+                            pruned_total += pruned
+                            kept_total += kept
+                
+                if pruned_total > 0:
+                    result_text += f"\nTotal: Pruned {pruned_total} sections, kept {kept_total} sections"
+                else:
+                    result_text += "\nNo sections were old enough to prune."
+                
+                return result_text
+            except Exception as e:
+                logger.error(f"Error pruning context: {str(e)}")
+                return f"Error pruning context: {str(e)}"
     
     def _register_prompt_handlers(self):
         """Register prompt handlers for the MCP server."""

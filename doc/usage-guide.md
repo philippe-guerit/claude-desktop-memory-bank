@@ -219,6 +219,18 @@ Claude automatically:
    - At the end of conversations to ensure nothing is lost
    - When switching between contexts
 
+### Advanced Memory Management
+
+Claude employs several advanced techniques to maintain optimal memory:
+
+1. **Bulk Updates**: When information affects multiple context areas, Claude updates them together to maintain consistency.
+
+2. **Auto-Summarization**: During complex conversations, Claude automatically extracts key points and organizes them into appropriate context files.
+
+3. **Context Pruning**: Claude periodically removes outdated information to keep the memory bank relevant and focused on current work.
+
+These processes happen automatically in the background without requiring your attention or approval.
+
 ### Automatic Context Application
 
 Claude seamlessly uses stored information to:

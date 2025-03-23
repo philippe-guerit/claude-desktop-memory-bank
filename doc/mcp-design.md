@@ -138,28 +138,38 @@ repository/
 └── ...
 ```
 
-## Memory Bank Selection
+## Autonomous Memory Bank Selection
 
-The memory bank selection follows a systematic approach:
+The memory bank selection follows an automatic approach with minimal user interaction:
 
 ```mermaid
 flowchart TD
-    Start[Start Conversation] --> Search[Search for repo path in Claude project docs]
+    Start[Start Conversation] --> Search[Silently check for repo path in Claude project docs]
     Search --> Found{Found repo path?}
-    Found -->|Yes| UseRepo[Use repo memory bank]
-    Found -->|No| Suggest[Claude suggests global memory bank]
-    Suggest --> Ask{User approves?}
-    Ask -->|Yes| UseGlobal[Use global memory bank]
-    Ask -->|No| Instruct[Claude instructs to add repo path to project doc]
-    Instruct --> Restart[User restarts memory bank]
+    Found -->|Yes| UseRepo[Automatically use repo memory bank]
+    Found -->|No| UseProject[Automatically use project memory bank]
+    
+    RepoMention[User mentions repository] --> Detect[Silently detect repository]
+    Detect --> RepoExists{Repository exists?}
+    RepoExists -->|Yes| HasMB{Has memory bank?}
+    RepoExists -->|No| Continue[Continue with current memory bank]
+    
+    HasMB -->|Yes| SwitchRepo[Silently switch to repo memory bank]
+    HasMB -->|No| InitRepo[Automatically initialize memory bank]
+    InitRepo --> SwitchRepo
+    
+    UseRepo --> Inform[Briefly inform user of context]
+    UseProject --> Inform
+    SwitchRepo --> Inform
 ```
 
-When Claude needs to select a memory bank, it:
-1. Checks if the conversation is associated with a Claude Desktop Project
+When Claude selects a memory bank, it:
+1. Automatically checks if the conversation is associated with a Claude Desktop Project
 2. If yes, checks if the project has a configured repository path
-3. If a repository path exists, uses that repository's memory bank
-4. If no repository path exists, asks the user whether to use the global memory bank
-5. Provides instructions on how to associate a repository if desired
+3. If a repository path exists, uses that repository's memory bank without asking for confirmation
+4. If no repository path exists, uses the project memory bank
+5. If a repository is mentioned during conversation, automatically switches to that repository's memory bank
+6. Operates seamlessly in the background without requiring explicit user approval
 
 ## Implementation Approach
 
@@ -213,7 +223,7 @@ classDiagram
 
 ## Core Workflows
 
-### Memory Bank Selection Workflow
+### Autonomous Memory Bank Selection Workflow
 
 ```mermaid
 sequenceDiagram
@@ -223,17 +233,15 @@ sequenceDiagram
     participant MBS as Memory Bank Selector
     
     User->>CD: Start conversation
-    CD->>MCP: Call select_memory_bank tool
-    MCP->>MBS: Check for repository in Claude project
-    MBS-->>MCP: Return memory bank selection
-    MCP-->>CD: Request user approval
-    CD-->>User: Explain memory bank selection
-    User->>CD: Approve selection
-    CD->>MCP: Confirm memory bank selection
-    MCP-->>CD: Memory bank selected
+    CD->>MCP: Silently call select_memory_bank tool
+    MCP->>MBS: Automatically check for repository in Claude project
+    MBS-->>MCP: Return appropriate memory bank selection
+    MCP-->>CD: Memory bank automatically selected
+    CD-->>User: Briefly acknowledge context (optional)
+    Note over CD,MCP: No user approval needed
 ```
 
-### Repository Detection Workflow
+### Autonomous Repository Detection Workflow
 
 ```mermaid
 sequenceDiagram
@@ -244,22 +252,23 @@ sequenceDiagram
     participant Git as Git Repository
     
     User->>CD: Mention working in repository
-    CD->>MCP: Call detect_repository tool
+    CD->>MCP: Silently call detect_repository tool
     MCP->>MBS: Check path for Git repository
     MBS->>Git: Check for .git directory
     Git-->>MBS: Confirm repository exists
     MBS-->>MCP: Repository detected
-    MCP-->>CD: Repository information
-    CD-->>User: Ask to use repository memory bank
-    User->>CD: Approve
-    CD->>MCP: Call initialize_memory_bank tool
-    MCP->>Git: Create .claude-memory directory
-    Git-->>MCP: Memory bank initialized
-    MCP-->>CD: Confirmation
-    CD-->>User: Memory bank ready
+    Note over MCP,MBS: Check if memory bank exists
+    alt Memory bank exists
+        MCP->>CD: Silently select repository memory bank
+    else Memory bank doesn't exist
+        MCP->>Git: Automatically create .claude-memory directory
+        Git-->>MCP: Memory bank initialized
+        MCP->>CD: Silently select new repository memory bank
+    end
+    CD-->>User: Continue conversation with repository context
 ```
 
-### Context Update Workflow
+### Automatic Context Update Workflow
 
 ```mermaid
 sequenceDiagram
@@ -268,12 +277,13 @@ sequenceDiagram
     participant MCP as Memory Bank MCP Server
     participant MB as Memory Bank
     
-    User->>CD: Update project context
-    CD->>MCP: Call update_context tool
-    MCP->>MB: Process update
-    MB-->>MCP: Confirm update
-    MCP-->>CD: Report successful update
-    CD-->>User: Confirm context is updated
+    User->>CD: Share important information
+    Note over CD: Identify information worth persisting
+    CD->>MCP: Silently call update_context tool
+    MCP->>MB: Process update in background
+    MB-->>MCP: Update complete
+    MCP-->>CD: Silently confirm update
+    CD-->>User: Continue conversation without interruption
 ```
 
 ## Integration with Claude Desktop
@@ -308,13 +318,17 @@ For repository integration, we'll use Git to detect repositories and place memor
 
 After the initial implementation, we could consider these enhancements:
 
-1. **Advanced Context Selection**: Implement more sophisticated algorithms to select the most relevant context
-2. **Embedding-Based Search**: Use embeddings to improve context searching
-3. **Context Versioning**: Track changes to context over time
-4. **Git Integration**: Store memory bank changes as Git commits
-5. **Collaborative Memory Banks**: Support for shared memory banks in team environments
-6. **Remote Hosting**: Support for remote hosting when MCP supports it
+1. **Advanced Context Selection**: Implement more sophisticated algorithms to autonomously select the most relevant context
+2. **Intelligent Context Summary**: Automatically generate summaries of past discussions when needed
+3. **Embedding-Based Search**: Use embeddings to improve context searching without requiring explicit queries
+4. **Context Versioning**: Silently track changes to context over time
+5. **Git Integration**: Automatically store memory bank changes as Git commits
+6. **Collaborative Memory Banks**: Seamless support for shared memory banks in team environments
+7. **Context Importance Scoring**: Automatically determine which information is most important to persist
+8. **Remote Hosting**: Support for transparent remote hosting when MCP supports it
 
 ## Conclusion
 
-The Claude Desktop Memory Bank MCP server provides a standardized way for Claude to maintain context across sessions using the Model Context Protocol. The multi-memory bank approach (global, project, and repository) offers flexibility and better context management for different conversation scenarios.
+The Claude Desktop Memory Bank MCP server provides an autonomous memory system that enables Claude to maintain context across sessions using the Model Context Protocol. The system operates in the background with minimal user interaction, creating a seamless experience where context persists naturally across conversations.
+
+This autonomous approach significantly reduces the cognitive load on users by eliminating the need to explicitly manage Claude's memory, allowing for more natural and productive interactions.

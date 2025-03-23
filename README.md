@@ -1,10 +1,10 @@
 # Claude Desktop Memory Bank
 
-A Model Context Protocol (MCP) server for Claude Desktop that maintains context across sessions.
+A Model Context Protocol (MCP) server that provides autonomous memory persistence for Claude Desktop.
 
 ## What is Claude Desktop Memory Bank?
 
-Claude Desktop Memory Bank is an MCP server that helps Claude Desktop maintain context and memory across sessions. It works by storing and organizing context in a structured format that Claude can access when needed.
+Claude Desktop Memory Bank is an MCP server that enables Claude to automatically maintain context and memory across sessions. It works as an auxiliary memory system that stores and organizes important information without requiring manual management by users.
 
 The system supports three types of memory banks:
 1. **Global Memory Bank**: For general conversations not tied to specific projects
@@ -54,25 +54,25 @@ The system supports three types of memory banks:
 
 ## Features
 
+### Autonomous Memory Management
+
+- **Background Operation**: Claude manages memory banks without user interaction
+- **Intelligent Context Persistence**: Automatically identifies and persists important information
+- **Seamless Context Retrieval**: Leverages stored context in conversations without explicit commands
+
 ### Memory Bank Types
 
 - **Global Memory Bank**: For general context across all conversations
 - **Project Memory Banks**: Context linked to specific Claude Desktop projects
 - **Repository Memory Banks**: Context stored directly within Git repositories
 
-### MCP Resources
+### Key Benefits
 
-- Project brief and context files
-- Technical documentation
-- Progress tracking
-- Active context updates
-
-### MCP Tools
-
-- Memory bank selection and management
-- Context search and updates
-- Repository detection and integration
-- Project creation and management
+- **Reduced Cognitive Load**: Users don't need to manage what Claude remembers
+- **Conversation Continuity**: Previous context flows naturally into new conversations
+- **Development Support**: Code and project knowledge persists across sessions
+- **Team Collaboration**: Repository memory banks can be shared via version control
+=======
 
 ## Usage
 

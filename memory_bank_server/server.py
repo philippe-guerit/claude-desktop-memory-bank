@@ -24,16 +24,37 @@ class MemoryBankServer:
         self.memory_bank_selector = MemoryBankSelector(self.storage_manager)
         self.context_manager = ContextManager(self.storage_manager, self.memory_bank_selector)
         
-        # Initialize MCP server
+        # Load custom instructions
+        custom_instructions = self._load_custom_instructions()
+        
+        # Initialize MCP server with custom instructions
         self.server = FastMCP(
             name="memory-bank",
-            instructions="Memory Bank for Claude Desktop"
+            instructions=custom_instructions
         )
         
         # Register handlers
         self._register_resource_handlers()
         self._register_tool_handlers()
         self._register_prompt_handlers()
+    
+    def _load_custom_instructions(self) -> str:
+        """Load custom instructions from file."""
+        try:
+            # Try to load custom instructions from the doc directory
+            doc_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc")
+            instruction_path = os.path.join(doc_dir, "custom_instruction.md")
+            
+            if os.path.exists(instruction_path):
+                logger.info(f"Loading custom instructions from: {instruction_path}")
+                with open(instruction_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            else:
+                logger.warning(f"Custom instruction file not found at: {instruction_path}")
+                return "Memory Bank for Claude Desktop - Autonomous context management system that maintains memory across conversations."
+        except Exception as e:
+            logger.error(f"Error loading custom instructions: {str(e)}")
+            return "Memory Bank for Claude Desktop - Autonomous context management system that maintains memory across conversations."
     
     def _register_resource_handlers(self):
         """Register resource handlers for the MCP server."""

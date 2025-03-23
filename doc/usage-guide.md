@@ -1,10 +1,10 @@
 # Claude Desktop Memory Bank - Usage Guide
 
-This guide explains how to use the Claude Desktop Memory Bank MCP server with Claude Desktop to maintain context across conversations.
+This guide explains how the Claude Desktop Memory Bank works as an autonomous context management system.
 
 ## Introduction
 
-The Claude Desktop Memory Bank is a Model Context Protocol (MCP) server that helps Claude Desktop maintain context and memory across sessions. It works by storing and organizing context in a structured format that Claude can access when needed.
+The Claude Desktop Memory Bank is a Model Context Protocol (MCP) server that enables Claude to maintain context and memory across sessions. It functions as Claude's auxiliary memory, automatically storing and organizing important information without requiring user management.
 
 The system supports three types of memory banks:
 1. **Global Memory Bank**: For general conversations not tied to specific projects
@@ -94,200 +94,143 @@ Repository memory banks are stored directly within Git repositories:
 - Ideal for development work where context should follow the codebase
 - Can be associated with Claude Desktop projects for easy access
 
-## Getting Started
+## How It Works
 
-### Memory Bank Selection
+### Autonomous Memory Bank Selection
 
-When starting a conversation, Claude will need to select which memory bank to use:
+When starting a conversation, Claude automatically selects the appropriate memory bank:
 
 1. **In a Claude Desktop Project**:
-   - If the project has an associated repository, Claude will use the repository memory bank
-   - If no repository is associated, Claude will use the project memory bank
-   - You can explicitly select a memory bank using the `select-memory-bank` tool
+   - If the project has an associated repository, Claude uses the repository memory bank
+   - If no repository is associated, Claude uses the project memory bank
+   - Claude briefly informs you which memory bank is being used
 
 2. **Outside of a Project**:
-   - Claude will use the global memory bank by default
-   - You can switch to a specific project or repository memory bank if needed
+   - Claude uses the global memory bank by default
+   - You can mention a specific project or repository to switch contexts
 
 3. **Working with a Repository**:
-   - Tell Claude about the repository you're working on
-   - Claude can detect Git repositories and initialize memory banks inside them
-   - The repository memory bank will be used for the conversation
+   - Simply mention the repository you're working with
+   - Claude automatically detects Git repositories and initializes memory banks if needed
+   - The repository memory bank is selected without requiring confirmation
 
 ### Creating Your First Project Memory Bank
 
 1. **Open Claude Desktop** and start a new conversation
-2. **Create a project**:
+2. **Mention creating a project**:
    ```
-   I'd like to create a new project in the memory bank called "MyProject"
+   I'd like to create a new project called "MyProject"
    ```
-3. **Claude will use the `create-project` tool**:
-   - Claude will ask for permission to use the tool
-   - It will prompt you for project details
-4. **Create a project brief**:
+3. **Claude automatically creates the project**:
+   - Claude sets up the necessary memory bank structure
+   - No confirmation steps needed
+4. **Discuss your project**:
    ```
-   Can you help me create a detailed project brief?
+   This project will be a web application for tracking inventory
    ```
-5. **Claude will use the `create-project-brief` prompt** to provide a template
-6. **Update the memory bank** with your project information
+5. **Claude automatically stores important information** in the appropriate context files
+6. **Information persists** for future conversations about this project
 
-### Creating a Repository Memory Bank
+### Working with Repository Memory Banks
 
-1. **Tell Claude about your repository**:
+1. **Mention your repository**:
    ```
    I'm working on a project in the repository at /path/to/repo
    ```
-2. **Claude will detect the repository**:
-   - It will use the `detect-repository` tool
-   - It will tell you if a memory bank already exists
-3. **Initialize a memory bank** if one doesn't exist:
-   ```
-   Please initialize a memory bank for this repository
-   ```
-4. **Claude will use the `initialize-repository-memory-bank` tool**:
-   - It will create a `.claude-memory` directory
-   - It will copy template files into it
-5. **Start using the repository memory bank**:
-   - Claude will switch to using this memory bank for the conversation
-   - You can update and access context stored in the repository
+2. **Claude automatically detects the repository**:
+   - It checks if a memory bank already exists
+   - If not, it initializes one without requiring confirmation
+3. **Continue your conversation** about the code:
+   - Claude remembers details about the repository
+   - Important information is saved automatically
+   - No explicit management required
 
-### Associating a Repository with a Claude Project
+### Connecting Projects and Repositories
 
-1. **Create or select a Claude Desktop project**
-2. **Tell Claude about the repository**:
-   ```
-   I want to associate this Claude project with my repository at /path/to/repo
-   ```
-3. **Claude will use the `associate-repository` prompt**:
-   - It will guide you through linking the project and repository
-4. **Confirm the association**:
-   - Claude will update the project metadata
-   - Future conversations in this project will use the repository memory bank
+Simply mention both in conversation:
+```
+My "InventoryApp" project uses the code in /path/to/inventory-repo
+```
+
+Claude automatically:
+- Associates the project with the repository
+- Ensures future conversations about this project use the repository memory bank
+- Preserves this association for future sessions
 
 ## Using Memory Banks
 
-### Checking Current Memory Bank
+### Seamless Context Awareness
 
-To see which memory bank is currently in use:
+Claude automatically leverages saved context:
+
+1. **Remembers previous discussions** without you having to remind it
+2. **Recalls technical decisions** made in earlier conversations
+3. **Understands project requirements** without repetition
+4. **Maintains awareness** of progress and outstanding tasks
+
+### Checking Memory Bank Status
+
+If you're curious about the current memory bank:
 
 ```
 What memory bank are we using right now?
 ```
 
-Claude will use the `memory-bank-info` resource to provide information about:
+Claude will provide information about:
 - The current memory bank type (global, project, or repository)
 - Repository details if using a repository memory bank
 - Project details if using a project memory bank
 
 ### Switching Memory Banks
 
-To switch to a different memory bank:
+To switch contexts, simply mention the new focus:
 
 ```
-Can we switch to the global memory bank?
-```
-
-Or:
-
-```
-Let's use the memory bank for my project "MyProject"
+Let's talk about my "Analytics" project instead
 ```
 
 Or:
 
 ```
-Please switch to the repository memory bank for /path/to/repo
+I'm now working in my /path/to/different-repo repository
 ```
 
-Claude will use the `select-memory-bank` tool to change memory banks.
+Claude automatically detects context switches and selects the appropriate memory bank.
 
-### Managing Context
+## Behind the Scenes
 
-Once a memory bank is selected, you can:
+While you don't need to interact directly with the memory bank system, it's helpful to understand what's happening in the background.
 
-1. **View context**:
-   ```
-   What does our project brief say?
-   ```
+### How Claude Updates Context
 
-2. **Update context**:
-   ```
-   Let's update the technical context with the new architecture decisions
-   ```
+Claude automatically:
 
-3. **Search context**:
-   ```
-   Can you search the memory bank for anything related to "authentication"?
-   ```
+1. **Monitors conversations** for important information
+2. **Categorizes information** into appropriate context types:
+   - `project_brief`: High-level project information
+   - `product_context`: Problem, solution, and user experience details
+   - `system_patterns`: Architecture and technical design decisions
+   - `tech_context`: Technologies, setup, and dependencies
+   - `active_context`: Current focus and recent changes
+   - `progress`: Work status tracking
 
-## Available Tools and Resources
+3. **Persists key information** at appropriate times:
+   - During conversations when important information emerges
+   - At the end of conversations to ensure nothing is lost
+   - When switching between contexts
 
-### Tools
+### Automatic Context Application
 
-1. **`select-memory-bank`**: Choose which memory bank to use
-   ```
-   Parameters:
-   - type: The type of memory bank ('global', 'project', or 'repository')
-   - project: The name of the project (for 'project' type)
-   - repository_path: The path to the repository (for 'repository' type)
-   ```
+Claude seamlessly uses stored information to:
 
-2. **`create-project`**: Create a new project memory bank
-   ```
-   Parameters:
-   - name: The name of the project
-   - description: A brief description of the project
-   - repository_path: Optional path to a Git repository
-   ```
-
-3. **`list-memory-banks`**: Show all available memory banks
-   ```
-   Parameters: None
-   ```
-
-4. **`detect-repository`**: Check if a path is within a Git repository
-   ```
-   Parameters:
-   - path: The path to check
-   ```
-
-5. **`initialize-repository-memory-bank`**: Create a memory bank in a repository
-   ```
-   Parameters:
-   - repository_path: Path to the Git repository
-   - claude_project: Optional Claude Desktop project to associate with
-   ```
-
-6. **`update-context`**: Update a context file
-   ```
-   Parameters:
-   - context_type: Type of context (project_brief, product_context, etc.)
-   - content: The new content for the file
-   ```
-
-7. **`search-context`**: Search through context files
-   ```
-   Parameters:
-   - query: Search term to look for
-   ```
-
-### Resources
-
-1. **`project-brief`**: The project brief document
-2. **`active-context`**: The current active context
-3. **`progress`**: Project progress information
-4. **`all-context`**: Combined view of all context files
-5. **`memory-bank-info`**: Information about available memory banks
-
-### Prompts
-
-1. **`create-project-brief`**: Template for creating a project brief
-2. **`create-update`**: Template for creating progress updates
-3. **`associate-repository`**: Template for linking a repository to a project
+1. **Understand references** to previously discussed components
+2. **Maintain awareness** of project goals and requirements
+3. **Recall technical decisions** without requiring repetition
+4. **Track progress** across multiple conversations
 
 ## Workflow Examples
 
-### Global Context Workflow
+### Autonomous Global Context Workflow
 
 ```mermaid
 sequenceDiagram
@@ -297,17 +240,17 @@ sequenceDiagram
     participant Global as Global Memory Bank
     
     User->>Claude: Start general conversation
-    Claude->>MB: Call select_memory_bank tool
+    Claude->>MB: Silently select global memory bank
     MB->>Global: Use global memory bank
     MB-->>Claude: Global memory bank selected
-    Claude-->>User: Ready to assist
-    User->>Claude: Ask for information
-    Claude->>Global: Get all-context resource
-    Global-->>Claude: Global context
+    Claude-->>User: Ready to assist (no memory bank mention)
+    User->>Claude: Discuss a topic
+    Claude->>Global: Silently access relevant context
     Claude-->>User: Provide context-aware response
+    Note over Claude,MB: Autonomously update memory bank with new information
 ```
 
-### Repository Context Workflow
+### Autonomous Repository Context Workflow
 
 ```mermaid
 sequenceDiagram
@@ -317,23 +260,20 @@ sequenceDiagram
     participant Repo as Repository Memory Bank
     
     User->>Claude: I'm working on the repo at /path/to/repo
-    Claude->>MB: Call detect_repository tool
+    Claude->>MB: Silently detect repository
     MB->>MB: Check for Git repository
     MB-->>Claude: Repository found
-    Claude-->>User: Display repository info
-    User->>Claude: Initialize a memory bank
-    Claude->>MB: Call initialize_repository_memory_bank
-    MB->>Repo: Create .claude-memory directory
-    Repo-->>MB: Memory bank initialized
+    Note over Claude,MB: Automatically initialize memory bank if needed
+    MB->>Repo: Create .claude-memory directory if needed
     MB-->>Claude: Repository memory bank ready
-    Claude-->>User: Memory bank created, now selected
+    Claude-->>User: Ready to discuss your repository (brief acknowledgment)
     User->>Claude: Discuss code changes
-    Claude->>Repo: Get context from repository
-    Repo-->>Claude: Repository-specific context
-    Claude-->>User: Context-aware code assistance
+    Claude->>Repo: Silently access repository context
+    Claude-->>User: Provide informed response
+    Note over Claude,MB: Autonomously update repository memory bank
 ```
 
-### Project with Repository Workflow
+### Autonomous Project with Repository Workflow
 
 ```mermaid
 sequenceDiagram
@@ -343,86 +283,71 @@ sequenceDiagram
     participant Project as Project Memory Bank
     participant Repo as Repository Memory Bank
     
-    User->>Claude: Open Claude project
-    Claude->>MB: Call select_memory_bank tool
+    User->>Claude: Open Claude project with associated repository
+    Claude->>MB: Silently select appropriate memory bank
     MB->>Project: Check if project has repository
     Project-->>MB: Repository path found
     MB->>Repo: Check repository memory bank
-    Repo-->>MB: Memory bank exists
-    MB-->>Claude: Repository memory bank selected
-    Claude-->>User: Ready with project context
+    Repo-->>MB: Memory bank ready
+    Claude-->>User: Ready to assist (brief acknowledgment of context)
+    User->>Claude: Discuss project
+    Claude->>Repo: Silently access relevant context
+    Claude-->>User: Provide context-aware response
+    Note over Claude,MB: Autonomously update memory bank with new information
 ```
 
 ## Best Practices
 
-### Working with Multiple Memory Banks
+### Getting the Most from Memory Banks
 
-1. **Be explicit about context scope**:
-   - For global knowledge, use the global memory bank
-   - For project-specific context, use project memory banks
-   - For code-related context, use repository memory banks
+1. **Mention project and repository names clearly**:
+   - "I'm working on the InventoryApp project"
+   - "This is for the repository at /path/to/repo"
 
-2. **Keep context organized**:
-   - Use the appropriate context type for different information
-   - Update the active context regularly
-   - Keep progress and status information current
+2. **Discuss important decisions explicitly**:
+   - Architectural choices
+   - Technical constraints
+   - Project requirements
+   - Implementation details
 
-3. **Repository Memory Bank Management**:
-   - Consider committing `.claude-memory` to Git for team sharing
-   - Include it in your regular development workflow
-   - Update context when making significant code changes
-
-### Memory Bank Selection Strategy
-
-1. **For general conversations**:
-   - Use the global memory bank
-   - Keep general knowledge and references here
-
-2. **For project planning and management**:
-   - Use project memory banks
-   - Link to repositories if code is involved
-
-3. **For coding and development**:
-   - Use repository memory banks
-   - Store context with your code
+3. **For teams using shared repositories**:
+   - Commit `.claude-memory` to Git for team sharing
+   - Pull before starting new conversations to get latest context
 
 ## Troubleshooting
 
-### Memory Bank Server Not Appearing
+### Memory Bank Server Issues
 
-If you don't see the memory bank tools in Claude Desktop:
+If Claude seems to have forgotten previous context:
 
-1. **Check configuration**:
-   - Make sure `claude_desktop_config.json` is correctly set up
+1. **Check server status**:
+   - Ensure the memory bank server is running
+   - Check configuration in `claude_desktop_config.json`
 
-2. **Check logs**:
-   - Look for error messages in the Claude logs
+2. **Check logs** for errors:
    - Logs are at `~/Library/Logs/Claude/mcp-server-memory-bank.log` (macOS)
    - Or `%APPDATA%\Claude\logs` (Windows)
 
-3. **Run the server manually**:
+3. **Restart server if needed**:
    ```bash
    python -m memory_bank_server
    ```
 
-### Repository Not Detected
+### Repository Detection Issues
 
-If Claude can't detect your Git repository:
+If Claude doesn't seem to recognize your repository:
 
-1. **Check the path**:
-   - Make sure the path is correct and absolute
-   - Check if the directory has a `.git` subdirectory
+1. **Use explicit absolute paths**:
+   - `/home/user/projects/my-repo` instead of `~/projects/my-repo`
 
-2. **Try a parent directory**:
-   - Git repositories are detected by looking for a `.git` directory
-   - Try specifying a path closer to the repository root
+2. **Ensure repository has a `.git` directory**:
+   - Must be a valid Git repository
 
-3. **Initialize manually**:
-   - Use the full path to the repository root
-   - Explicitly call the `initialize-repository-memory-bank` tool
+3. **Check parent directories**:
+   - Sometimes the root of the repository is higher than expected
 
 ## Conclusion
 
-The Claude Desktop Memory Bank enhances your interactions with Claude by providing persistent context across sessions. By using the appropriate memory bank type for different scenarios, you can maintain context for general knowledge, project work, and code development.
+The Claude Desktop Memory Bank enhances your interactions with Claude by providing persistent context across sessions without requiring manual management. By automatically selecting appropriate memory banks and silently updating context, Claude provides a seamless experience where important information is remembered without explicit instructions.
 
-Repository-based memory banks provide a powerful way to keep context directly with your code, while project memory banks help organize work in Claude Desktop projects. The global memory bank serves as a foundation for general knowledge and continuity across all your conversations.
+This autonomous system lets you focus on your work rather than managing Claude's memory, creating a more natural and efficient collaboration experience.

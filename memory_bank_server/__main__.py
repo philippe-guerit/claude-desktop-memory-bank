@@ -8,15 +8,33 @@ import os
 import sys
 import asyncio
 import logging
+import json
+import io
 
 from .server import MemoryBankServer
+
+# Fix for JSON-RPC message encoding 
+class FixedJSONEncoder(json.JSONEncoder):
+    def __init__(self, *args, **kwargs):
+        # Force specific JSON formatting options
+        kwargs['separators'] = (',', ':')
+        kwargs['ensure_ascii'] = True
+        super().__init__(*args, **kwargs)
+
+# Replace the default JSON encoder
+json._default_encoder = FixedJSONEncoder()
+json.dumps = lambda obj, **kwargs: json._default_encoder.encode(obj)
+
+# Use UTF-8 encoding for stdout/stderr
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout)
+        logging.StreamHandler(sys.stderr)  # Use stderr for logging to avoid mixing with JSON messages
     ]
 )
 

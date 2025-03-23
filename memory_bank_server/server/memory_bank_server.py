@@ -80,6 +80,19 @@ class MemoryBankServer:
     async def initialize(self) -> None:
         """Initialize the server."""
         logger.info("Initializing Memory Bank server")
+        
+        # Ensure all JSON messages are formatted correctly for JSON-RPC 2.0
+        import json
+        # Monkey patch json.dumps to ensure correct message formatting
+        original_dumps = json.dumps
+        def patched_dumps(*args, **kwargs):
+            # Always use compact JSON format without extra whitespace
+            kwargs['separators'] = (',', ':')
+            # Ensure ASCII compatibility
+            kwargs['ensure_ascii'] = True
+            return original_dumps(*args, **kwargs)
+        json.dumps = patched_dumps
+        
         await self.context_service.initialize()
     
     async def run(self) -> None:
@@ -87,6 +100,29 @@ class MemoryBankServer:
         logger.info("Starting Memory Bank server")
         
         try:
+            # Set up environment for MCP communication
+            import os
+            os.environ['MCP_STRICT_JSON'] = 'true'  # Tell MCP to use strict JSON formatting
+            os.environ['MCP_USE_LF'] = 'true'  # Ensure line feeds are consistent
+            
+            # Fix potential JSON encoding issues
+            import json
+            json_dumps_original = json.dumps
+            
+            def json_dumps_fixed(obj, **kwargs):
+                """Override JSON serialization to ensure consistent formatting."""
+                # Force specific settings for JSON-RPC messages
+                kwargs['separators'] = (',', ':')
+                kwargs['ensure_ascii'] = True
+                # Remove any BOM or other problematic characters
+                result = json_dumps_original(obj, **kwargs)
+                if result.startswith('\ufeff'):  # Remove BOM if present
+                    result = result[1:]
+                return result
+            
+            # Apply the fixed JSON dumps globally
+            json.dumps = json_dumps_fixed
+            
             # Initialize the server
             await self.initialize()
             

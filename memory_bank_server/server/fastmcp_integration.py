@@ -6,6 +6,7 @@ to the FastMCP framework.
 """
 
 import os
+import json  # Added import
 import logging
 from typing import Dict, List, Optional, Any, Callable
 
@@ -49,9 +50,12 @@ class FastMCPIntegration:
             custom_instructions: Custom instructions for the FastMCP server
         """
         try:
+            # Configure MCP server with correct JSON-RPC formatting
+            import json
             self.server = FastMCP(
                 name="memory-bank",
-                instructions=custom_instructions
+                instructions=custom_instructions,
+                json_serializer=lambda obj: json.dumps(obj, separators=(',', ':'), ensure_ascii=True)
             )
             logger.info("FastMCP integration initialized successfully")
         except Exception as e:
@@ -225,15 +229,21 @@ Branch: {repo_info.get('branch', '')}
                 actions_taken = result["actions_taken"]
                 
                 # Step 4: Get available prompts
-                prompts_data = self.server.handle_message({"type": "prompts/list"})
+                prompts_data = self.server.handle_message({
+                    "method": "prompts/list", 
+                    "jsonrpc": "2.0", 
+                    "id": 1
+                })
                 available_prompts = {prompt["id"]: prompt["name"] for prompt in prompts_data.get("prompts", [])}
                 
                 # Step 5: Load the specified prompt or default
                 if prompt_name and prompt_name in available_prompts:
                     # Load the specified prompt
                     prompt_data = self.server.handle_message({
-                        "type": "prompts/get",
-                        "prompt_id": prompt_name
+                        "method": "prompts/get",
+                        "params": {"prompt_id": prompt_name},
+                        "jsonrpc": "2.0",
+                        "id": 2
                     })
                     actions_taken.append(f"Loaded custom prompt: {available_prompts[prompt_name]}")
                 else:
@@ -763,6 +773,31 @@ Branch: {repo_info.get('branch', '')}
         if not self.is_available():
             raise RuntimeError("FastMCP server is not available")
         
+        # Override the server's JSON serialization to ensure proper formatting
+        import json
+        import sys
+        
+        # Store original methods
+        original_stdout_write = sys.stdout.write
+        original_json_dumps = json.dumps
+        
+        # Define a wrapper for stdout.write to ensure proper message formatting
+        def custom_stdout_write(data):
+            # If this looks like JSON, ensure it's properly formatted
+            if data.strip().startswith('{'):
+                try:
+                    # Parse and re-serialize to ensure clean JSON
+                    parsed = json.loads(data)
+                    clean_data = original_json_dumps(parsed, separators=(',', ':'), ensure_ascii=True) + '\n'
+                    return original_stdout_write(clean_data)
+                except:
+                    pass
+            # For non-JSON data, proceed as normal
+            return original_stdout_write(data)
+        
+        # Replace stdout.write with our custom version
+        sys.stdout.write = custom_stdout_write
+        
         logger.info("Memory Bank server running with FastMCP integration")
         await self.server.run_stdio_async()
     
@@ -777,13 +812,18 @@ Branch: {repo_info.get('branch', '')}
         Returns:
             Formatted result string
         """
-        # This function can be expanded to handle different result types
         if isinstance(result, dict):
-            # Format dictionary result
-            return json.dumps(result, indent=2)
+            # Ensure the result is a proper JSON-RPC 2.0 response
+            if "jsonrpc" not in result:
+                result["jsonrpc"] = "2.0"
+            if "id" not in result:
+                result["id"] = 0
+            
+            # Format dictionary without any extra whitespace or newlines
+            return json.dumps(result, separators=(',', ':'))
         elif isinstance(result, str):
-            # Return string as is
-            return result
+            # For string results, ensure no embedded newlines
+            return result.replace('\n', ' ')
         else:
-            # Convert other types to string
-            return str(result)
+            # Convert other types to string, ensure no newlines
+            return str(result).replace('\n', ' ')

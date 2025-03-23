@@ -83,6 +83,20 @@ def main():
             prompts_response = proc.stdout.readline().strip()
             print(f"Response: {prompts_response}")
             
+            # Test memory-bank-start tool
+            print("\n--- Testing memory-bank-start tool ---")
+            start_request = json.dumps({
+                "type": "tools/call",
+                "tool": "memory-bank-start",
+                "params": {}
+            }) + "\n"
+            proc.stdin.write(start_request)
+            proc.stdin.flush()
+            
+            # Wait for response
+            start_response = proc.stdout.readline().strip()
+            print(f"Response: {start_response}")
+            
             print("\nAll MCP tests completed successfully!")
             return True
             

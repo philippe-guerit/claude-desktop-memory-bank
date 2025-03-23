@@ -43,7 +43,7 @@ class MemoryBankServer:
         try:
             # Load custom instructions from the prompt_templates directory
             prompt_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt_templates")
-            instruction_path = os.path.join(prompt_dir, "custom_instruction.md")
+            instruction_path = os.path.join(prompt_dir, "default_custom_instruction.md")
             
             if os.path.exists(instruction_path):
                 logger.info(f"Loading custom instructions from: {instruction_path}")
@@ -171,6 +171,141 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_tool_handlers(self):
         """Register tool handlers for the MCP server."""
+        
+        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank and load a custom prompt")
+        async def memory_bank_start(
+            prompt_name: Optional[str] = None,
+            auto_detect: bool = True,
+            current_path: Optional[str] = None,
+            force_type: Optional[str] = None
+        ) -> str:
+            """Initialize the memory bank and load a custom prompt.
+            
+            Args:
+                prompt_name: Optional name of the prompt to load. If not provided, 
+                            the default custom instruction will be used.
+                auto_detect: Whether to automatically detect repositories. Default: True
+                current_path: Path to check for repository. Default: Current working directory
+                force_type: Force a specific memory bank type ('global', 'project', or 'repository')
+                            overriding auto-detection.
+            
+            Returns:
+                Confirmation message about the initialization
+            """
+            try:
+                logger.info(f"Starting memory bank with prompt: {prompt_name if prompt_name else 'default'}, " +
+                           f"auto_detect: {auto_detect}, path: {current_path}, force_type: {force_type}")
+                
+                # Initialize tracking variables
+                actions_taken = []
+                selected_memory_bank = None
+                
+                # Use current working directory if path not provided
+                if not current_path:
+                    current_path = os.getcwd()
+                    logger.info(f"Using current working directory: {current_path}")
+                
+                # Step 1: Auto-detect repository if enabled
+                detected_repo = None
+                if auto_detect and not force_type:
+                    logger.info(f"Attempting repository detection at: {current_path}")
+                    detected_repo = await self.context_manager.detect_repository(current_path)
+                    
+                    if detected_repo:
+                        actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
+                        logger.info(f"Repository detected: {detected_repo}")
+                
+                # Step 2: Initialize repository memory bank if needed
+                if detected_repo and not force_type:
+                    # Check if memory bank exists for this repository
+                    memory_bank_path = detected_repo.get('memory_bank_path', '')
+                    if not memory_bank_path or not os.path.exists(memory_bank_path):
+                        logger.info(f"Initializing repository memory bank for: {detected_repo.get('path', '')}")
+                        repo_memory_bank = await self.context_manager.initialize_repository_memory_bank(
+                            detected_repo.get('path', '')
+                        )
+                        actions_taken.append(f"Initialized repository memory bank for: {detected_repo.get('name', '')}")
+                        selected_memory_bank = repo_memory_bank
+                    else:
+                        actions_taken.append(f"Using existing repository memory bank: {detected_repo.get('name', '')}")
+                
+                # Step 3: Select appropriate memory bank based on detection or force_type
+                if force_type:
+                    logger.info(f"Forcing memory bank type: {force_type}")
+                    if force_type == "global":
+                        selected_memory_bank = await self.context_manager.set_memory_bank()
+                        actions_taken.append("Forced selection of global memory bank")
+                    elif force_type == "project" and force_type.startswith("project:"):
+                        project_name = force_type.split(":", 1)[1]
+                        selected_memory_bank = await self.context_manager.set_memory_bank(claude_project=project_name)
+                        actions_taken.append(f"Forced selection of project memory bank: {project_name}")
+                    elif force_type == "repository" and force_type.startswith("repository:"):
+                        repo_path = force_type.split(":", 1)[1]
+                        selected_memory_bank = await self.context_manager.set_memory_bank(repository_path=repo_path)
+                        actions_taken.append(f"Forced selection of repository memory bank: {repo_path}")
+                    else:
+                        actions_taken.append(f"Warning: Invalid force_type: {force_type}. Using default selection.")
+                        
+                elif detected_repo and not selected_memory_bank:
+                    # We detected a repo but didn't initialize a memory bank (it already existed)
+                    logger.info(f"Selecting detected repository memory bank: {detected_repo.get('path', '')}")
+                    selected_memory_bank = await self.context_manager.set_memory_bank(
+                        repository_path=detected_repo.get('path', '')
+                    )
+                    actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
+                
+                # If no memory bank was selected yet, get the current memory bank
+                if not selected_memory_bank:
+                    selected_memory_bank = await self.context_manager.get_current_memory_bank()
+                    actions_taken.append(f"Using current memory bank: {selected_memory_bank['type']}")
+                
+                # Step 4: Get available prompts
+                prompts_data = await self.server.handle_message_async({"type": "prompts/list"})
+                available_prompts = {prompt["id"]: prompt["name"] for prompt in prompts_data.get("prompts", [])}
+                
+                # Step 5: Load the specified prompt or default
+                if prompt_name and prompt_name in available_prompts:
+                    # Load the specified prompt
+                    prompt_data = await self.server.handle_message_async({
+                        "type": "prompts/get",
+                        "prompt_id": prompt_name
+                    })
+                    actions_taken.append(f"Loaded custom prompt: {available_prompts[prompt_name]}")
+                else:
+                    # No valid prompt specified, load the default custom instruction
+                    # This is already loaded when the server initializes
+                    actions_taken.append("Loaded default memory bank custom instructions")
+                
+                # Format technical details for logging
+                tech_details = "Actions performed:\n"
+                for action in actions_taken:
+                    tech_details += f"- {action}\n"
+                
+                tech_details += f"\nActive memory bank: {selected_memory_bank['type']}\n"
+                
+                if selected_memory_bank['type'] == 'repository':
+                    repo_info = selected_memory_bank.get('repo_info', {})
+                    tech_details += f"Repository: {repo_info.get('name', '')}\n"
+                    tech_details += f"Path: {repo_info.get('path', '')}\n"
+                    if repo_info.get('branch'):
+                        tech_details += f"Branch: {repo_info.get('branch', '')}\n"
+                    if selected_memory_bank.get('project'):
+                        tech_details += f"Associated Project: {selected_memory_bank['project']}\n"
+                
+                elif selected_memory_bank['type'] == 'project':
+                    tech_details += f"Project: {selected_memory_bank.get('project', '')}\n"
+                
+                # Create response with special wrapper for Claude
+                prompt_name_display = prompt_name if prompt_name and prompt_name in available_prompts else "default"
+                
+                # Add special tag for Claude to recognize and format
+                result_text = f"<claude_display>\nThe memory bank was started successfully with the \"{prompt_name_display}\" prompt.\n</claude_display>\n\n"
+                result_text += f"Technical details:\n{tech_details}"
+                
+                return result_text
+            except Exception as e:
+                logger.error(f"Error starting memory bank: {str(e)}")
+                return f"Error starting memory bank: {str(e)}"
         @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
         async def select_memory_bank(
             type: str = "global", 

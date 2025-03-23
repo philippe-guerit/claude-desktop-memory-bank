@@ -36,5 +36,11 @@ storage/repositories/*
 !storage/projects/.gitkeep
 !storage/repositories/.gitkeep
 
+# Repository memory bank
+.claude-memory/
+
+# Repository memory bank
+.claude-memory/
+
 # MCP server logs
 *.log

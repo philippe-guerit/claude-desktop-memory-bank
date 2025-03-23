@@ -260,13 +260,13 @@ Branch: {repo_info.get('branch', '')}
                     actions_taken.append(f"Using current memory bank: {selected_memory_bank['type']}")
                 
                 # Step 4: Get available prompts
-                prompts_data = await self.server.handle_message_async({"type": "prompts/list"})
+                prompts_data = self.server.handle_message({"type": "prompts/list"})
                 available_prompts = {prompt["id"]: prompt["name"] for prompt in prompts_data.get("prompts", [])}
                 
                 # Step 5: Load the specified prompt or default
                 if prompt_name and prompt_name in available_prompts:
                     # Load the specified prompt
-                    prompt_data = await self.server.handle_message_async({
+                    prompt_data = self.server.handle_message({
                         "type": "prompts/get",
                         "prompt_id": prompt_name
                     })

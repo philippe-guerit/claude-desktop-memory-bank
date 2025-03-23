@@ -42,3 +42,23 @@ The Claude Desktop Memory Bank is now fully installed and tested. You can:
    provided in `config.json`.
 
 3. Begin using the memory bank in your Claude Desktop conversations.
+
+## Using the Memory Bank
+
+To initialize the memory bank at the start of your conversations, use the new `memory-bank-start` tool:
+
+```json
+{
+  "type": "tools/call",
+  "tool": "memory-bank-start",
+  "params": {}
+}
+```
+
+This will:
+- Automatically detect if you're in a repository
+- Initialize memory banks as needed
+- Load the appropriate custom instructions
+- Select the best memory bank for your current context
+
+For more advanced options, see the [tools documentation](doc/tools.md).

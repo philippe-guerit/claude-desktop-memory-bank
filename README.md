@@ -88,6 +88,15 @@ For information on the architecture and implementation, see:
 
 This server implements the Model Context Protocol (MCP) to provide a standardized way for Claude to access and maintain context across sessions. The MCP specification defines a standard for resources, tools, and prompts that can be used by any MCP-compatible client.
 
+### Key MCP Tools
+
+- **memory-bank-start**: Initialize memory banks and load custom prompts with a single tool call
+- **select-memory-bank**: Choose which memory bank to use for the conversation
+- **update-context**: Update context files in the current memory bank
+- **search-context**: Find relevant information in context files
+
+See [doc/tools.md](doc/tools.md) for complete documentation on all available tools.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

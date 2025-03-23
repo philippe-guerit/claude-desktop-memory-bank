@@ -41,9 +41,9 @@ class MemoryBankServer:
     def _load_custom_instructions(self) -> str:
         """Load custom instructions from file."""
         try:
-            # Try to load custom instructions from the doc directory
-            doc_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc")
-            instruction_path = os.path.join(doc_dir, "custom_instruction.md")
+            # Load custom instructions from the prompt_templates directory
+            prompt_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt_templates")
+            instruction_path = os.path.join(prompt_dir, "custom_instruction.md")
             
             if os.path.exists(instruction_path):
                 logger.info(f"Loading custom instructions from: {instruction_path}")

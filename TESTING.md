@@ -34,6 +34,14 @@ Before running tests, ensure you have:
 
 ## Running Tests
 
+### Running All Tests
+
+To run all tests at once:
+
+```bash
+python -m unittest discover tests
+```
+
 ### Running Basic Tests
 
 These tests check the directory structure and basic file operations:
@@ -48,6 +56,14 @@ These tests verify the functionality of the memory bank server:
 
 ```bash
 python -m tests.test_server
+```
+
+### Running Context Manager Extension Tests
+
+These tests verify the functionality of the new autonomous memory management tools:
+
+```bash
+python -m tests.test_context_manager
 ```
 
 ### Running a Specific Test Case
@@ -86,3 +102,9 @@ pip install mcp httpx gitpython
 ```
 
 If the MCP package is not available, you may need to get it from the Anthropic MCP SDK distribution.
+
+### Deprecation Warnings
+
+You may see DeprecationWarnings related to `datetime.datetime.utcnow()`. These warnings indicate that the code is using a deprecated method that will be removed in a future Python version. The warnings recommend using `datetime.datetime.now(datetime.UTC)` instead.
+
+These warnings do not affect functionality and can be addressed in a future update.

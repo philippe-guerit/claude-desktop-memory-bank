@@ -221,15 +221,51 @@ Claude automatically:
 
 ### Advanced Memory Management
 
-Claude employs several advanced techniques to maintain optimal memory:
+Claude employs several advanced techniques to maintain optimal memory through specialized tools:
 
-1. **Bulk Updates**: When information affects multiple context areas, Claude updates them together to maintain consistency.
+#### 1. Bulk Update Context
 
-2. **Auto-Summarization**: During complex conversations, Claude automatically extracts key points and organizes them into appropriate context files.
+The `bulk-update-context` tool allows for simultaneous updates to multiple context types in a single atomic operation.
 
-3. **Context Pruning**: Claude periodically removes outdated information to keep the memory bank relevant and focused on current work.
+**Features:**
+- Updates multiple context files in one API call
+- Maintains consistency across related context files
+- Reduces API overhead when updating multiple contexts
 
-These processes happen automatically in the background without requiring your attention or approval.
+Claude uses bulk updates when:
+- Information affects multiple context areas simultaneously
+- Related contexts need to be updated together to maintain consistency
+- Multiple pieces of information emerge in a single conversation
+
+#### 2. Auto-Summarize Context
+
+The `auto-summarize-context` tool extracts relevant information from conversations and automatically categorizes it into appropriate context types.
+
+**Features:**
+- Extracts relevant information from conversations automatically
+- Categorizes content into appropriate context types based on keywords and content
+- Creates timestamped updates for tracking changes over time
+
+Claude employs auto-summarization:
+- During complex conversations covering multiple topics
+- When important information is scattered throughout a long discussion
+- To organize insights into the proper context categories without manual intervention
+
+#### 3. Prune Context
+
+The `prune-context` tool removes outdated information based on a configurable age threshold.
+
+**Features:**
+- Removes outdated information based on configurable age threshold (default: 90 days)
+- Preserves recent updates and important undated content
+- Keeps memory banks concise and focused on current information
+
+Claude performs context pruning:
+- When context files have accumulated many historical updates
+- When older information is no longer relevant to the current state of the project
+- Periodically to maintain optimal memory bank performance
+
+All these processes happen automatically in the background without requiring your attention or approval, ensuring Claude maintains relevant context without manual management.
 
 ### Automatic Context Application
 
@@ -344,6 +380,28 @@ If Claude seems to have forgotten previous context:
    ```bash
    python -m memory_bank_server
    ```
+
+### Testing Memory Management Tools
+
+If you suspect issues with the memory management tools:
+
+1. **Run the test suite**:
+   ```bash
+   cd /path/to/claude-desktop-memory-bank
+   python3 -m unittest tests/test_context_manager.py
+   ```
+
+2. **Test all tools together**:
+   ```bash
+   python3 -m unittest tests/test_tools.py
+   ```
+
+3. **Verify server functionality**:
+   ```bash
+   python3 -m unittest discover tests
+   ```
+
+The test results will indicate if there are any issues with the bulk update, auto-summarize, or prune context functionality.
 
 ### Repository Detection Issues
 

@@ -7,9 +7,9 @@ setup(
     author="Anthropic",
     packages=find_packages(),
     install_requires=[
-        "mcp",
-        "httpx",
-        "gitpython",
+        "mcp==1.5.0",
+        "httpx>=0.20.0",
+        "gitpython>=3.1.0",
     ],
     entry_points={
         "console_scripts": [

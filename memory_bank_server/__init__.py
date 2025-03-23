@@ -1,21 +1,11 @@
-import sys
-from . import server
-from .utils import logger
+"""
+Memory Bank server for Claude Desktop.
 
-__all__ = ["server"]
+This package provides a server for maintaining memory across conversations
+in Claude Desktop, including context management, repository integration,
+and memory bank organization.
+"""
 
-def main():
-    """Main entry point for the package."""
-    import asyncio
-    
-    try:
-        # Print startup message to stderr for debugging
-        print("Starting Memory Bank MCP server...", file=sys.stderr)
-        
-        # Run the server
-        asyncio.run(server.main())
-    except Exception as e:
-        # Log any uncaught exceptions
-        print(f"Error in Memory Bank MCP server: {str(e)}", file=sys.stderr)
-        logger.error(f"Error in Memory Bank MCP server: {str(e)}", exc_info=True)
-        sys.exit(1)
+__version__ = "0.2.0"
+
+from .server import MemoryBankServer

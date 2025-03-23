@@ -1,6 +1,6 @@
-# Claude Desktop Memory Bank - Usage Guide
+# Claude Desktop Memory Bank - Usage and Tools Guide
 
-This guide explains how the Claude Desktop Memory Bank works as an autonomous context management system.
+This comprehensive guide explains how to use the Claude Desktop Memory Bank system and provides detailed documentation for all available MCP tools.
 
 ## Introduction
 
@@ -157,124 +157,194 @@ Claude automatically:
 - Ensures future conversations about this project use the repository memory bank
 - Preserves this association for future sessions
 
-## Using Memory Banks
+## MCP Tools Reference
 
-### Seamless Context Awareness
+The Memory Bank system provides various MCP tools that enable Claude to manage memory banks and context information. While these tools typically work automatically in the background, understanding them can help troubleshoot issues or implement advanced workflows.
 
-Claude automatically leverages saved context:
+### memory-bank-start
 
-1. **Remembers previous discussions** without you having to remind it
-2. **Recalls technical decisions** made in earlier conversations
-3. **Understands project requirements** without repetition
-4. **Maintains awareness** of progress and outstanding tasks
+Initializes the memory bank and loads a custom prompt.
 
-### Checking Memory Bank Status
+#### Description
 
-If you're curious about the current memory bank:
+This tool orchestrates the initialization process for memory banks. It detects repositories, initializes memory banks when needed, selects the appropriate memory bank based on the detection, and loads a specified prompt or the default custom instructions.
 
-```
-What memory bank are we using right now?
-```
+#### Parameters
 
-Claude will provide information about:
-- The current memory bank type (global, project, or repository)
-- Repository details if using a repository memory bank
-- Project details if using a project memory bank
+- **prompt_name** (optional): Name of the prompt to load. If not provided, the default custom instruction will be used.
+- **auto_detect** (optional): Whether to automatically detect repositories. Default: `true`
+- **current_path** (optional): Path to check for repository. Default: Current working directory
+- **force_type** (optional): Force a specific memory bank type (`global`, `project`, or `repository`) overriding auto-detection.
 
-### Switching Memory Banks
+#### Returns
 
-To switch contexts, simply mention the new focus:
+A confirmation message about the initialization with details about the memory bank that was selected.
 
-```
-Let's talk about my "Analytics" project instead
-```
+### select-memory-bank
 
-Or:
+Selects which memory bank to use for the conversation.
 
-```
-I'm now working in my /path/to/different-repo repository
-```
+#### Description
 
-Claude automatically detects context switches and selects the appropriate memory bank.
+This tool allows selecting a specific memory bank for the current conversation. It can be used to switch between global, project, and repository memory banks.
 
-## Behind the Scenes
+#### Parameters
 
-While you don't need to interact directly with the memory bank system, it's helpful to understand what's happening in the background.
+- **type**: The type of memory bank to use (`global`, `project`, or `repository`)
+- **project** (optional): The name of the project (for `project` type)
+- **repository_path** (optional): The path to the repository (for `repository` type)
 
-### How Claude Updates Context
+#### Returns
 
-Claude automatically:
+Information about the selected memory bank.
 
-1. **Monitors conversations** for important information
-2. **Categorizes information** into appropriate context types:
-   - `project_brief`: High-level project information
-   - `product_context`: Problem, solution, and user experience details
-   - `system_patterns`: Architecture and technical design decisions
-   - `tech_context`: Technologies, setup, and dependencies
-   - `active_context`: Current focus and recent changes
-   - `progress`: Work status tracking
+### create-project
 
-3. **Persists key information** at appropriate times:
-   - During conversations when important information emerges
-   - At the end of conversations to ensure nothing is lost
-   - When switching between contexts
+Creates a new project in the memory bank.
 
-### Advanced Memory Management
+#### Description
 
-Claude employs several advanced techniques to maintain optimal memory through specialized tools:
+This tool creates a new project memory bank and optionally associates it with a Git repository.
 
-#### 1. Bulk Update Context
+#### Parameters
 
-The `bulk-update-context` tool allows for simultaneous updates to multiple context types in a single atomic operation.
+- **name**: The name of the project to create
+- **description**: A brief description of the project
+- **repository_path** (optional): Path to a Git repository to associate with the project
 
-**Features:**
-- Updates multiple context files in one API call
-- Maintains consistency across related context files
-- Reduces API overhead when updating multiple contexts
+#### Returns
 
-Claude uses bulk updates when:
-- Information affects multiple context areas simultaneously
-- Related contexts need to be updated together to maintain consistency
-- Multiple pieces of information emerge in a single conversation
+A confirmation message about the created project.
 
-#### 2. Auto-Summarize Context
+### list-memory-banks
 
-The `auto-summarize-context` tool extracts relevant information from conversations and automatically categorizes it into appropriate context types.
+Lists all available memory banks.
 
-**Features:**
-- Extracts relevant information from conversations automatically
-- Categorizes content into appropriate context types based on keywords and content
-- Creates timestamped updates for tracking changes over time
+#### Description
 
-Claude employs auto-summarization:
-- During complex conversations covering multiple topics
-- When important information is scattered throughout a long discussion
-- To organize insights into the proper context categories without manual intervention
+This tool provides information about all available memory banks, including the current memory bank, global memory bank, project memory banks, and repository memory banks.
 
-#### 3. Prune Context
+#### Parameters
 
-The `prune-context` tool removes outdated information based on a configurable age threshold.
+None
 
-**Features:**
-- Removes outdated information based on configurable age threshold (default: 90 days)
-- Preserves recent updates and important undated content
-- Keeps memory banks concise and focused on current information
+#### Returns
 
-Claude performs context pruning:
-- When context files have accumulated many historical updates
-- When older information is no longer relevant to the current state of the project
-- Periodically to maintain optimal memory bank performance
+A formatted list of all available memory banks with their details.
 
-All these processes happen automatically in the background without requiring your attention or approval, ensuring Claude maintains relevant context without manual management.
+### detect-repository
 
-### Automatic Context Application
+Detects if a path is within a Git repository.
 
-Claude seamlessly uses stored information to:
+#### Description
 
-1. **Understand references** to previously discussed components
-2. **Maintain awareness** of project goals and requirements
-3. **Recall technical decisions** without requiring repetition
-4. **Track progress** across multiple conversations
+This tool checks if a given path is within a Git repository and provides information about the repository if found.
+
+#### Parameters
+
+- **path**: The path to check
+
+#### Returns
+
+Information about the detected repository, or a message indicating no repository was found.
+
+### initialize-repository-memory-bank
+
+Initializes a memory bank within a Git repository.
+
+#### Description
+
+This tool creates a new memory bank within a Git repository and optionally associates it with a Claude Desktop project.
+
+#### Parameters
+
+- **repository_path**: Path to the Git repository
+- **claude_project** (optional): Claude Desktop project to associate with this repository
+
+#### Returns
+
+Information about the initialized memory bank.
+
+### update-context
+
+Updates a context file in the current memory bank.
+
+#### Description
+
+This tool allows updating a specific context file (like project brief, technical context, etc.) in the current memory bank.
+
+#### Parameters
+
+- **context_type**: The type of context to update (`project_brief`, `product_context`, `system_patterns`, `tech_context`, `active_context`, or `progress`)
+- **content**: The new content for the context file
+
+#### Returns
+
+A confirmation message about the updated context.
+
+### search-context
+
+Searches through context files in the current memory bank.
+
+#### Description
+
+This tool allows searching for specific terms within the context files of the current memory bank.
+
+#### Parameters
+
+- **query**: The search term to look for in context files
+
+#### Returns
+
+Search results showing matching lines from context files.
+
+### bulk-update-context
+
+Updates multiple context files in one operation.
+
+#### Description
+
+This tool allows updating multiple context files at once in the current memory bank.
+
+#### Parameters
+
+- **updates**: A dictionary mapping context types to their new content
+
+#### Returns
+
+A confirmation message about the bulk update.
+
+### auto-summarize-context
+
+Automatically extracts and updates context from conversation.
+
+#### Description
+
+This tool analyzes conversation text to extract relevant information and automatically update appropriate context files.
+
+#### Parameters
+
+- **conversation_text**: The text of the conversation to analyze
+
+#### Returns
+
+Information about what context files were updated and with what information.
+
+### prune-context
+
+Removes outdated information from context files.
+
+#### Description
+
+This tool removes outdated information from context files based on a configurable age threshold.
+
+#### Parameters
+
+- **max_age_days** (optional): Maximum age in days of content to keep. Default: 90
+
+#### Returns
+
+Information about what was pruned from which context files.
 
 ## Workflow Examples
 
@@ -321,29 +391,6 @@ sequenceDiagram
     Note over Claude,MB: Autonomously update repository memory bank
 ```
 
-### Autonomous Project with Repository Workflow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Claude as Claude Desktop
-    participant MB as Memory Bank
-    participant Project as Project Memory Bank
-    participant Repo as Repository Memory Bank
-    
-    User->>Claude: Open Claude project with associated repository
-    Claude->>MB: Silently select appropriate memory bank
-    MB->>Project: Check if project has repository
-    Project-->>MB: Repository path found
-    MB->>Repo: Check repository memory bank
-    Repo-->>MB: Memory bank ready
-    Claude-->>User: Ready to assist (brief acknowledgment of context)
-    User->>Claude: Discuss project
-    Claude->>Repo: Silently access relevant context
-    Claude-->>User: Provide context-aware response
-    Note over Claude,MB: Autonomously update memory bank with new information
-```
-
 ## Best Practices
 
 ### Getting the Most from Memory Banks
@@ -380,28 +427,6 @@ If Claude seems to have forgotten previous context:
    ```bash
    python -m memory_bank_server
    ```
-
-### Testing Memory Management Tools
-
-If you suspect issues with the memory management tools:
-
-1. **Run the test suite**:
-   ```bash
-   cd /path/to/claude-desktop-memory-bank
-   python3 -m unittest tests/test_context_manager.py
-   ```
-
-2. **Test all tools together**:
-   ```bash
-   python3 -m unittest tests/test_tools.py
-   ```
-
-3. **Verify server functionality**:
-   ```bash
-   python3 -m unittest discover tests
-   ```
-
-The test results will indicate if there are any issues with the bulk update, auto-summarize, or prune context functionality.
 
 ### Repository Detection Issues
 

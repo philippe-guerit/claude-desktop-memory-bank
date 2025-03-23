@@ -72,16 +72,15 @@ The system supports three types of memory banks:
 - **Conversation Continuity**: Previous context flows naturally into new conversations
 - **Development Support**: Code and project knowledge persists across sessions
 - **Team Collaboration**: Repository memory banks can be shared via version control
-=======
 
-## Usage
+## Usage and Tools
 
-For detailed usage instructions, see the [Usage Guide](doc/usage-guide.md).
+For detailed usage instructions and tool documentation, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
 
 ## Development
 
 For information on the architecture and implementation, see:
-- [MCP Design Documentation](doc/mcp-design.md)
+- [MCP Design Documentation](doc/mcp-design.md) 
 - [Implementation Guide](doc/implementation-guide.md)
 
 ## MCP API
@@ -95,7 +94,7 @@ This server implements the Model Context Protocol (MCP) to provide a standardize
 - **update-context**: Update context files in the current memory bank
 - **search-context**: Find relevant information in context files
 
-See [doc/tools.md](doc/tools.md) for complete documentation on all available tools.
+For complete documentation on all available tools, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
 
 ## License
 

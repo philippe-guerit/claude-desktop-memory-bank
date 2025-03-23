@@ -12,20 +12,33 @@ MCP addresses the challenge of AI systems being isolated from data sources by pr
 
 ## System Architecture Overview
 
-The Memory Bank MCP server follows the standard MCP architecture pattern, with support for multiple memory bank sources:
+The Memory Bank MCP server follows a layered architecture with support for multiple memory bank sources:
 
 ```mermaid
 flowchart TD
     Claude[Claude Desktop] <--> CMCP[Claude Memory Bank MCP Server]
-    CMCP <--> MemSelector[Memory Bank Selector]
     
-    MemSelector --> Global[Global Memory Bank]
-    MemSelector --> Project[Project Memory Banks]
-    MemSelector --> Repo[Repository Memory Banks]
+    subgraph Server [Memory Bank Server]
+        Core[Core Business Logic]
+        Services[Service Layer]
+        Integration[Integration Layer]
+    end
     
-    Global <--> GlobalFS[File System]
-    Project <--> ProjectFS[File System]
-    Repo <--> RepoFS[.claude-memory in Git Repos]
+    CMCP --> Server
+    
+    Services --> ContextSvc[Context Service]
+    Services --> StorageSvc[Storage Service]
+    Services --> RepoSvc[Repository Service]
+    
+    ContextSvc --> Memory[Memory Bank Selection]
+    
+    Memory --> Global[Global Memory Bank]
+    Memory --> Project[Project Memory Banks]
+    Memory --> Repo[Repository Memory Banks]
+    
+    StorageSvc --> GlobalFS[File System]
+    StorageSvc --> ProjectFS[File System]
+    RepoSvc --> RepoFS[.claude-memory in Git Repos]
 ```
 
 ## Memory Bank Types
@@ -51,12 +64,14 @@ Resources in MCP are file-like data that can be read by clients. Our Memory Bank
 
 ```mermaid
 flowchart LR
-    Claude[Claude Desktop] --> RH[Resource Handler]
-    RH --> MBS[Memory Bank Selector]
-    MBS --> PB[Project Brief]
-    MBS --> TC[Technical Context]
-    MBS --> AC[Active Context]
-    MBS --> P[Progress]
+    Claude[Claude Desktop] --> FastMCP[FastMCP Integration]
+    FastMCP --> Resources[Resource Handlers]
+    Resources --> ContextSvc[Context Service]
+    ContextSvc --> StorageSvc[Storage Service]
+    StorageSvc --> PB[Project Brief]
+    StorageSvc --> TC[Technical Context]
+    StorageSvc --> AC[Active Context]
+    StorageSvc --> P[Progress]
 ```
 
 ### 2. Tools
@@ -71,12 +86,15 @@ MCP Tools are functions that can be called by the LLM (with user approval). Our 
 
 ```mermaid
 flowchart LR
-    Claude[Claude Desktop] --> TH[Tool Handler]
-    TH --> MBM[Memory Bank Management]
-    TH --> Update[Update Context]
-    TH --> Search[Search Context]
-    TH --> Project[Project Management]
-    TH --> Repo[Repository Tools]
+    Claude[Claude Desktop] --> FastMCP[FastMCP Integration]
+    FastMCP --> Tools[Tool Handlers]
+    Tools --> Core[Core Business Logic]
+    Core --> ContextSvc[Context Service]
+    ContextSvc --> MBM[Memory Bank Management]
+    ContextSvc --> Update[Update Context]
+    ContextSvc --> Search[Search Context]
+    ContextSvc --> Project[Project Management]
+    ContextSvc --> Repo[Repository Tools]
 ```
 
 ### 3. Prompts
@@ -183,43 +201,105 @@ We'll implement the Claude Desktop Memory Bank using the official MCP Python SDK
 
 ## Server Implementation Details
 
-The server will be implemented using Python and the official MCP Python SDK:
+The server is implemented using a layered architecture pattern with clear separation of concerns:
 
 ```mermaid
-classDiagram
-    class MemoryBankServer {
-        +initialize_server()
-        +configure_resources()
-        +configure_tools()
-        +configure_prompts()
-        +run()
-    }
+flowchart TD
+    Server[Memory Bank Server] --> Core[Core Business Logic]
+    Server --> Services[Service Layer]
+    Server --> Integration[Integration Layer]
     
-    class MemoryBankSelector {
-        +get_memory_bank(context)
-        +detect_repository(path)
-        +get_project_repository(project_name)
-        +initialize_memory_bank(path)
-    }
+    Services --> Core
+    Integration --> Services
     
-    class ContextManager {
-        +get_context(memory_bank, context_type)
-        +update_context(memory_bank, context_type, content)
-        +search_context(memory_bank, query)
-    }
+    subgraph Core [Core Business Logic Layer]
+        CoreMemory[memory_bank.py]
+        CoreContext[context.py]
+    end
     
-    class StorageManager {
-        +read_file(file_path)
-        +write_file(file_path, content)
-        +list_files()
-        +create_memory_bank(path)
-    }
+    subgraph Services [Service Layer]
+        ContextSvc[ContextService]
+        RepoSvc[RepositoryService]
+        StorageSvc[StorageService]
+    end
     
-    MemoryBankServer --> MemoryBankSelector
-    MemoryBankServer --> ContextManager
-    MemoryBankSelector --> StorageManager
-    ContextManager --> StorageManager
+    subgraph Integration [Integration Layer]
+        FastMCP[FastMCPIntegration]
+        Direct[DirectAccess]
+    end
+    
+    ContextSvc --> RepoSvc
+    ContextSvc --> StorageSvc
+    FastMCP --> ContextSvc
+    Direct --> ContextSvc
 ```
+
+### Core Business Logic Layer
+
+The core layer contains pure, framework-agnostic functions with:
+- No external dependencies
+- Single-responsibility functions
+- Explicit parameter passing
+- Proper error handling
+
+```python
+# Example from memory_bank.py (core layer)
+async def select_memory_bank(
+    context_service,
+    type: str = "global", 
+    project_name: Optional[str] = None, 
+    repository_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """Core logic for selecting a memory bank."""
+    return await context_service.set_memory_bank(
+        type=type,
+        project_name=project_name,
+        repository_path=repository_path
+    )
+```
+
+### Service Layer
+
+The service layer encapsulates related functionality:
+- `StorageService`: Handles file I/O operations
+- `RepositoryService`: Manages Git repository interactions
+- `ContextService`: Orchestrates context management
+
+```python
+# Example from context_service.py (service layer)
+async def get_context(self, context_type: str) -> str:
+    """Get context content from the current memory bank."""
+    self._validate_context_type(context_type)
+    memory_bank = await self.get_current_memory_bank()
+    memory_bank_path = memory_bank["path"]
+    file_name = self.CONTEXT_FILES[context_type]
+    return await self.storage_service.get_context_file(memory_bank_path, file_name)
+```
+
+### Integration Layer
+
+The integration layer provides adapters to external systems:
+- `FastMCPIntegration`: Connects to the FastMCP framework
+- `DirectAccess`: Provides API access independent of FastMCP
+
+```python
+# Example from direct_access.py (integration layer)
+async def update_context(self, context_type: str, content: str) -> Dict[str, Any]:
+    """Update a context file using the direct API."""
+    return await update_context(
+        self.context_service,
+        context_type,
+        content
+    )
+```
+
+### Key Architectural Principles
+
+- **Composition over Inheritance**: Services compose other services
+- **Hierarchical Function Design**: Higher-level functions call lower-level ones
+- **Clean Separation of Concerns**: Each component has a single responsibility
+- **Improved Testability**: Components can be tested in isolation
+- **Graceful Degradation**: System works even if FastMCP is unavailable
 
 ## Core Workflows
 
@@ -229,16 +309,18 @@ classDiagram
 sequenceDiagram
     participant User
     participant CD as Claude Desktop
-    participant MCP as Memory Bank MCP Server
-    participant MBS as Memory Bank Selector
+    participant FastMCP as FastMCP Integration
+    participant Core as Core Business Logic
+    participant ContextSvc as Context Service
     
     User->>CD: Start conversation
-    CD->>MCP: Silently call select_memory_bank tool
-    MCP->>MBS: Automatically check for repository in Claude project
-    MBS-->>MCP: Return appropriate memory bank selection
-    MCP-->>CD: Memory bank automatically selected
+    CD->>FastMCP: Silently call select_memory_bank tool
+    FastMCP->>Core: Call start_memory_bank function
+    Core->>ContextSvc: Check for project/repository context
+    ContextSvc-->>Core: Return appropriate memory bank
+    Core-->>FastMCP: Return selected memory bank info
+    FastMCP-->>CD: Memory bank automatically selected
     CD-->>User: Briefly acknowledge context (optional)
-    Note over CD,MCP: No user approval needed
 ```
 
 ### Autonomous Repository Detection Workflow
@@ -247,24 +329,35 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant CD as Claude Desktop
-    participant MCP as Memory Bank MCP Server
-    participant MBS as Memory Bank Selector
-    participant Git as Git Repository
+    participant FastMCP as FastMCP Integration
+    participant Core as Core Business Logic
+    participant ContextSvc as Context Service
+    participant RepoSvc as Repository Service
     
     User->>CD: Mention working in repository
-    CD->>MCP: Silently call detect_repository tool
-    MCP->>MBS: Check path for Git repository
-    MBS->>Git: Check for .git directory
-    Git-->>MBS: Confirm repository exists
-    MBS-->>MCP: Repository detected
-    Note over MCP,MBS: Check if memory bank exists
-    alt Memory bank exists
-        MCP->>CD: Silently select repository memory bank
-    else Memory bank doesn't exist
-        MCP->>Git: Automatically create .claude-memory directory
-        Git-->>MCP: Memory bank initialized
-        MCP->>CD: Silently select new repository memory bank
+    CD->>FastMCP: Silently call detect_repository tool
+    FastMCP->>Core: Call detect_repository function
+    Core->>ContextSvc: Request repository detection
+    ContextSvc->>RepoSvc: Check path for Git repository
+    RepoSvc-->>ContextSvc: Return repository info
+    ContextSvc-->>Core: Return repository details
+    Core-->>FastMCP: Return detected repository
+    
+    alt Repository has memory bank
+        FastMCP->>Core: Call select_memory_bank function
+        Core->>ContextSvc: Select repository memory bank
+        ContextSvc-->>Core: Memory bank selected
+        Core-->>FastMCP: Return memory bank info
+    else Repository needs memory bank
+        FastMCP->>Core: Call initialize_repository_memory_bank function
+        Core->>ContextSvc: Initialize repository memory bank
+        ContextSvc->>RepoSvc: Create .claude-memory directory
+        RepoSvc-->>ContextSvc: Memory bank initialized
+        ContextSvc-->>Core: Return new memory bank info
+        Core-->>FastMCP: Return memory bank info
     end
+    
+    FastMCP-->>CD: Repository memory bank selected
     CD-->>User: Continue conversation with repository context
 ```
 
@@ -274,15 +367,21 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant CD as Claude Desktop
-    participant MCP as Memory Bank MCP Server
-    participant MB as Memory Bank
+    participant FastMCP as FastMCP Integration
+    participant Core as Core Business Logic
+    participant ContextSvc as Context Service
+    participant StorageSvc as Storage Service
     
     User->>CD: Share important information
     Note over CD: Identify information worth persisting
-    CD->>MCP: Silently call update_context tool
-    MCP->>MB: Process update in background
-    MB-->>MCP: Update complete
-    MCP-->>CD: Silently confirm update
+    CD->>FastMCP: Silently call update_context tool
+    FastMCP->>Core: Call update_context function
+    Core->>ContextSvc: Update context in current memory bank
+    ContextSvc->>StorageSvc: Write to context file
+    StorageSvc-->>ContextSvc: File updated
+    ContextSvc-->>Core: Context update complete
+    Core-->>FastMCP: Return update confirmation
+    FastMCP-->>CD: Silently confirm update
     CD-->>User: Continue conversation without interruption
 ```
 
@@ -297,7 +396,7 @@ To integrate with Claude Desktop, the configuration will include options for glo
       "command": "python",
       "args": ["-m", "memory_bank_server"],
       "env": {
-        "GLOBAL_MEMORY_PATH": "/path/to/global/memory",
+        "MEMORY_BANK_ROOT": "/path/to/storage/directory",
         "ENABLE_REPO_DETECTION": "true"
       }
     }

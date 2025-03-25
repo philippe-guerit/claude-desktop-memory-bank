@@ -463,21 +463,42 @@ Branch: {repo_info.get('branch', '')}
             try:
                 logger.info(f"Creating project: name={name}, repository_path={repository_path}")
                 
-                # Call the core business logic
+                # Defer to memory-bank-start when possible
                 try:
-                    project = await create_project(
+                    # Call memory-bank-start instead of direct create_project
+                    result = await start_memory_bank(
                         self.context_service,
-                        name, 
-                        description, 
-                        repository_path
+                        project_name=name,
+                        project_description=description,
+                        current_path=repository_path if repository_path else None,
+                        force_type="project"  # Force project type to ensure project creation
                     )
                     
-                    result_text = f"Project '{name}' created successfully.\n"
-                    if repository_path:
-                        result_text += f"Associated with repository: {repository_path}\n"
-                    result_text += "This memory bank is now selected for the current conversation."
+                    actions_taken = result.get("actions_taken", [])
+                    created = any("Created project" in action for action in actions_taken)
                     
-                    return result_text
+                    if created:
+                        result_text = f"Project '{name}' created successfully.\n"
+                        if repository_path:
+                            result_text += f"Associated with repository: {repository_path}\n"
+                        result_text += "This memory bank is now selected for the current conversation."
+                        return result_text
+                    else:
+                        # If memory-bank-start didn't create a project, fall back to direct method
+                        logger.warning("memory-bank-start didn't create project, falling back to direct method")
+                        project = await create_project(
+                            self.context_service,
+                            name, 
+                            description, 
+                            repository_path
+                        )
+                        
+                        result_text = f"Project '{name}' created successfully (using fallback method).\n"
+                        if repository_path:
+                            result_text += f"Associated with repository: {repository_path}\n"
+                        result_text += "This memory bank is now selected for the current conversation."
+                        
+                        return result_text
                 except ValueError as e:
                     return str(e)
                 
@@ -549,11 +570,14 @@ Branch: {repo_info.get('branch', '')}
             try:
                 logger.info(f"Detecting repository at path: {path}")
                 
+                # First suggest the preferred approach
+                alternative_cmd = f"Use memory-bank-start with current_path=\"{path}\" instead. This provides repository detection and automatic memory bank initialization in one step."
+                
                 # Call the core business logic
                 repo_info = await detect_repository(self.context_service, path)
                 
                 if not repo_info:
-                    return f"No Git repository found at or above {path}."
+                    return f"No Git repository found at or above {path}.\n\n{alternative_cmd}"
                 
                 result_text = f"Git repository detected:\n"
                 result_text += f"Name: {repo_info.get('name', '')}\n"
@@ -571,7 +595,10 @@ Branch: {repo_info.get('branch', '')}
                     result_text += f"Memory bank exists: Yes\n"
                 else:
                     result_text += f"Memory bank exists: No\n"
-                    result_text += "Use the initialize-repository-memory-bank tool to create one."
+                    result_text += f"Use memory-bank-start with current_path=\"{path}\" to initialize the memory bank.\n"
+                
+                # Add the migration suggestion
+                result_text += f"\n[DEPRECATED] {alternative_cmd}"
                 
                 return result_text
             except Exception as e:
@@ -589,7 +616,55 @@ Branch: {repo_info.get('branch', '')}
             try:
                 logger.info(f"Initializing repository memory bank: path={repository_path}, project={claude_project}")
                 
-                # Call the core business logic
+                # Defer to memory-bank-start when possible
+                alternative_cmd = f"memory-bank-start(current_path=\"{repository_path}\""
+                if claude_project:
+                    alternative_cmd += f", project_name=\"{claude_project}\", project_description=\"Associated with repository\""
+                alternative_cmd += ")"
+                
+                try:
+                    # Use memory-bank-start to handle the initialization
+                    params = {
+                        "current_path": repository_path,
+                        "auto_detect": True,
+                    }
+                    
+                    # Add project parameters if project name was provided
+                    if claude_project:
+                        params["project_name"] = claude_project
+                        params["project_description"] = "Associated with repository"
+                    
+                    # Call memory-bank-start
+                    result = await start_memory_bank(self.context_service, **params)
+                    actions_taken = result.get("actions_taken", [])
+                    initialized = any("Initialized repository memory bank" in action for action in actions_taken)
+                    
+                    if initialized:
+                        memory_bank = result.get("selected_memory_bank", {})
+                        
+                        result_text = f"Repository memory bank initialized:\n"
+                        
+                        repo_info = memory_bank.get('repo_info', {})
+                        result_text += f"Repository: {repo_info.get('name', '')}\n"
+                        result_text += f"Repository path: {repo_info.get('path', '')}\n"
+                        
+                        if claude_project:
+                            result_text += f"Associated Claude project: {claude_project}\n"
+                        
+                        result_text += "This memory bank is now selected for the current conversation."
+                        
+                        # Add the migration suggestion
+                        result_text += f"\n\n[DEPRECATED] Use {alternative_cmd} instead."
+                        
+                        return result_text
+                    else:
+                        # Fall back to direct method
+                        logger.warning("memory-bank-start didn't initialize repository memory bank, falling back to direct method")
+                
+                except Exception as e:
+                    logger.error(f"Error using memory-bank-start, falling back to direct method: {str(e)}")
+                
+                # Fall back to the original implementation
                 memory_bank = await initialize_repository_memory_bank(
                     self.context_service,
                     repository_path, 
@@ -607,6 +682,9 @@ Branch: {repo_info.get('branch', '')}
                     result_text += f"Associated Claude project: {claude_project}\n"
                 
                 result_text += "This memory bank is now selected for the current conversation."
+                
+                # Add the migration suggestion
+                result_text += f"\n\n[DEPRECATED] Use {alternative_cmd} instead."
                 
                 return result_text
             except Exception as e:

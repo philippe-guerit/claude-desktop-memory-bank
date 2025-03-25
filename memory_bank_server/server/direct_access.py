@@ -43,15 +43,19 @@ class DirectAccess:
         prompt_name: Optional[str] = None,
         auto_detect: bool = True,
         current_path: Optional[str] = None,
-        force_type: Optional[str] = None
+        force_type: Optional[str] = None,
+        project_name: Optional[str] = None,
+        project_description: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Start a memory bank.
+        """Start a memory bank with unified approach.
         
         Args:
             prompt_name: Optional name of the prompt to load
             auto_detect: Whether to automatically detect repositories
             current_path: Path to check for repository
             force_type: Force a specific memory bank type
+            project_name: Optional name for creating a new project
+            project_description: Optional description for creating a new project
             
         Returns:
             Dictionary with result data
@@ -61,7 +65,9 @@ class DirectAccess:
             prompt_name=prompt_name,
             auto_detect=auto_detect,
             current_path=current_path,
-            force_type=force_type
+            force_type=force_type,
+            project_name=project_name,
+            project_description=project_description
         )
     
     async def select_memory_bank(

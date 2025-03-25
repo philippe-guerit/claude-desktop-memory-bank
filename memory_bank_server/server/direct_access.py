@@ -18,7 +18,6 @@ from ..core import (
     get_context,
     update_context,
     bulk_update_context,
-    auto_summarize_context,
     prune_context,
     get_all_context,
     get_memory_bank_info
@@ -191,19 +190,7 @@ class DirectAccess:
         """
         return await bulk_update_context(self.context_service, updates)
     
-    async def auto_summarize_context(self, conversation_text: str) -> Dict[str, str]:
-        """Extract context from conversation.
-        
-        Args:
-            conversation_text: Conversation text
-            
-        Returns:
-            Dictionary with suggested updates
-        """
-        return await auto_summarize_context(
-            self.context_service,
-            conversation_text
-        )
+
     
     async def prune_context(self, max_age_days: int = 90) -> Dict[str, Any]:
         """Remove outdated context.

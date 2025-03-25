@@ -52,20 +52,6 @@ async def bulk_update_context(
     """
     return await context_service.bulk_update_context(updates)
 
-async def auto_summarize_context(
-    context_service,
-    conversation_text: str
-) -> Dict[str, str]:
-    """Core logic for automatically extracting and updating context.
-    
-    Args:
-        context_service: The context service instance
-        conversation_text: Text of the conversation to summarize
-        
-    Returns:
-        Dictionary of suggested context updates by context type
-    """
-    return await context_service.auto_summarize_context(conversation_text)
 
 async def prune_context(
     context_service,

@@ -336,44 +336,7 @@ class ContextService:
         
         return memory_bank
     
-    async def search_context(self, query: str) -> Dict[str, List[str]]:
-        """Search through context files in the current memory bank for the given query.
-        
-        Args:
-            query: Search query
-            
-        Returns:
-            Dictionary mapping context types to lists of matching lines
-        """
-        # Get current memory bank
-        memory_bank = await self.get_current_memory_bank()
-        memory_bank_path = memory_bank["path"]
-        
-        results = {}
-        
-        # Search through each context file
-        for context_type, file_name in self.CONTEXT_FILES.items():
-            try:
-                content = await self.storage_service.get_context_file(memory_bank_path, file_name)
-                
-                # Simple search implementation
-                if query.lower() in content.lower():
-                    lines = content.split('\n')
-                    matching_lines = [
-                        line.strip() for line in lines 
-                        if query.lower() in line.lower()
-                    ]
-                    if matching_lines:
-                        results[context_type] = matching_lines
-                        logger.info(f"Found {len(matching_lines)} matches in {context_type} for '{query}'")
-            except Exception as e:
-                # Skip files with errors
-                logger.error(f"Error searching context {context_type}: {str(e)}")
-        
-        if not results:
-            logger.info(f"No results found for query: {query} in {memory_bank['type']} memory bank")
-        
-        return results
+
     
     async def bulk_update_context(self, updates: Dict[str, str]) -> Dict[str, Any]:
         """Update multiple context files in the current memory bank in one operation.
@@ -423,60 +386,7 @@ class ContextService:
         
         return memory_bank
     
-    async def auto_summarize_context(self, conversation_text: str) -> Dict[str, str]:
-        """Extract relevant information from conversation and create context summaries.
-        
-        Args:
-            conversation_text: Text of the conversation to summarize
-            
-        Returns:
-            Dictionary of suggested context updates by context type
-        """
-        # Define keyword categories for each context type
-        keywords = {
-            "project_brief": ["purpose", "goal", "objective", "requirement", "scope", "timeline"],
-            "product_context": ["problem", "solution", "user", "stakeholder", "experience"],
-            "system_patterns": ["architecture", "pattern", "design", "relationship", "structure"],
-            "tech_context": ["technology", "setup", "framework", "library", "dependency", "constraint"],
-            "active_context": ["focus", "current", "change", "recent", "next", "decision"],
-            "progress": ["complete", "finish", "done", "progress", "pending", "issue", "block"]
-        }
-        
-        result = {}
-        
-        # Get existing context
-        all_context = {}
-        for context_type in self.CONTEXT_FILES.keys():
-            try:
-                all_context[context_type] = await self.get_context(context_type)
-            except Exception:
-                all_context[context_type] = ""
-        
-        # Split conversation into paragraphs
-        paragraphs = conversation_text.split('\n\n')
-        
-        # Categorize paragraphs by context type based on keywords
-        for context_type, terms in keywords.items():
-            # Filter paragraphs containing keywords for this context type
-            relevant_paragraphs = []
-            for paragraph in paragraphs:
-                if any(term.lower() in paragraph.lower() for term in terms):
-                    relevant_paragraphs.append(paragraph)
-            
-            # If we found relevant content, create a summary
-            if relevant_paragraphs:
-                # Create a suggested update combining existing content and new content
-                existing_content = all_context.get(context_type, "")
-                
-                # Format new content with timestamp and header
-                timestamp = datetime.utcnow().strftime("%Y-%m-%d")
-                new_content = f"\n\n## Update {timestamp}\n\n"
-                new_content += "\n\n".join(relevant_paragraphs)
-                
-                # Combine existing and new content
-                result[context_type] = existing_content + new_content
-        
-        return result
+
     
     async def prune_context(self, max_age_days: int = 90) -> Dict[str, Any]:
         """Remove outdated information from context files.

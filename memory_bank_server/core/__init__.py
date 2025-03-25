@@ -21,7 +21,6 @@ from .context import (
     get_context,
     update_context,
     bulk_update_context,
-    auto_summarize_context,
     prune_context,
     get_all_context,
     get_memory_bank_info

@@ -24,7 +24,6 @@ from ..core import (
     get_context,
     update_context,
     bulk_update_context,
-    auto_summarize_context,
     prune_context,
     get_all_context,
     get_memory_bank_info
@@ -667,50 +666,7 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error bulk updating context: {str(e)}")
                 return f"Error bulk updating context: {str(e)}"
         
-        # Auto summarize context tool
-        @self.server.tool(name="auto-summarize-context", description="Automatically extract and update context from conversation")
-        async def auto_summarize_context_tool(conversation_text: str) -> str:
-            """Extract relevant information from conversation and update context automatically."""
-            try:
-                logger.info("Auto-summarizing context from conversation")
-                
-                # Call the core business logic
-                suggested_updates = await auto_summarize_context(
-                    self.context_service,
-                    conversation_text
-                )
-                
-                if not suggested_updates:
-                    return "No relevant information found to update context."
-                
-                # Apply all suggested updates
-                memory_bank = await bulk_update_context(
-                    self.context_service,
-                    suggested_updates
-                )
-                
-                result_text = f"Successfully extracted and updated {len(suggested_updates)} context files:\n\n"
-                
-                # List what was updated
-                for context_type in suggested_updates.keys():
-                    result_text += f"- {context_type.replace('_', ' ').title()}\n"
-                
-                # Add memory bank info
-                result_text += f"\nUpdates applied to {memory_bank['type']} memory bank."
-                
-                if memory_bank['type'] == 'repository':
-                    repo_info = memory_bank.get('repo_info', {})
-                    result_text += f"\nRepository: {repo_info.get('name', '')}"
-                    if memory_bank.get('project'):
-                        result_text += f"\nAssociated Project: {memory_bank['project']}"
-                
-                elif memory_bank['type'] == 'project':
-                    result_text += f"\nProject: {memory_bank.get('project', '')}"
-                
-                return result_text
-            except Exception as e:
-                logger.error(f"Error auto-summarizing context: {str(e)}")
-                return f"Error auto-summarizing context: {str(e)}"
+
         
         # Prune context tool
         @self.server.tool(name="prune-context", description="Remove outdated information from context files")

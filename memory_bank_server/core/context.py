@@ -36,20 +36,6 @@ async def update_context(
     """
     return await context_service.update_context(context_type, content)
 
-async def search_context(
-    context_service,
-    query: str
-) -> Dict[str, List[str]]:
-    """Core logic for searching through context files.
-    
-    Args:
-        context_service: The context service instance
-        query: The search term to look for in context files
-        
-    Returns:
-        Dictionary mapping context types to matching lines
-    """
-    return await context_service.search_context(query)
 
 async def bulk_update_context(
     context_service,

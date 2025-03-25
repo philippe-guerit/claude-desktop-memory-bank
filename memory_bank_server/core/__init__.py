@@ -20,7 +20,6 @@ from .memory_bank import (
 from .context import (
     get_context,
     update_context,
-    search_context,
     bulk_update_context,
     auto_summarize_context,
     prune_context,

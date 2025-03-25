@@ -282,21 +282,6 @@ This tool allows updating a specific context file (like project brief, technical
 
 A confirmation message about the updated context.
 
-### search-context
-
-Searches through context files in the current memory bank.
-
-#### Description
-
-This tool allows searching for specific terms within the context files of the current memory bank.
-
-#### Parameters
-
-- **query**: The search term to look for in context files
-
-#### Returns
-
-Search results showing matching lines from context files.
 
 ### bulk-update-context
 

@@ -92,7 +92,6 @@ This server implements the Model Context Protocol (MCP) to provide a standardize
 - **memory-bank-start**: Initialize memory banks and load custom prompts with a single tool call
 - **select-memory-bank**: Choose which memory bank to use for the conversation
 - **update-context**: Update context files in the current memory bank
-- **search-context**: Find relevant information in context files
 
 For complete documentation on all available tools, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
 

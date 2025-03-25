@@ -23,7 +23,6 @@ from ..core import (
     create_project,
     get_context,
     update_context,
-    search_context,
     bulk_update_context,
     auto_summarize_context,
     prune_context,
@@ -612,46 +611,7 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error updating context: {str(e)}")
                 return f"Error updating context: {str(e)}"
         
-        # Search context tool
-        @self.server.tool(name="search-context", description="Search through context files in the current memory bank")
-        async def search_context_tool(query: str) -> str:
-            """Search through context files in the current memory bank."""
-            try:
-                logger.info(f"Searching context for: {query}")
-                
-                # Call the core business logic
-                results = await search_context(self.context_service, query)
-                current_memory_bank = await self.context_service.get_current_memory_bank()
-                
-                if not results:
-                    return f"No results found for query: {query} in {current_memory_bank['type']} memory bank."
-                
-                result_text = f"Search results for '{query}' in {current_memory_bank['type']} memory bank:\n\n"
-                
-                # Add memory bank info
-                if current_memory_bank['type'] == 'repository':
-                    repo_info = current_memory_bank.get('repo_info', {})
-                    result_text += f"Repository: {repo_info.get('name', '')}\n"
-                    if current_memory_bank.get('project'):
-                        result_text += f"Associated Project: {current_memory_bank['project']}\n"
-                
-                elif current_memory_bank['type'] == 'project':
-                    result_text += f"Project: {current_memory_bank.get('project', '')}\n"
-                
-                result_text += "\n"
-                
-                # Add search results
-                for context_type, lines in results.items():
-                    result_text += f"## {context_type.replace('_', ' ').title()}\n\n"
-                    for line in lines:
-                        result_text += f"- {line}\n"
-                    result_text += "\n"
-                
-                return result_text
-            except Exception as e:
-                logger.error(f"Error searching context: {str(e)}")
-                return f"Error searching context: {str(e)}"
-        
+
         # Bulk update context tool
         @self.server.tool(name="bulk-update-context", description="Update multiple context files in one operation")
         async def bulk_update_context_tool(updates: Dict[str, str]) -> str:

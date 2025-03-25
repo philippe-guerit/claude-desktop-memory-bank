@@ -208,25 +208,41 @@ Branch: {repo_info.get('branch', '')}
     def _register_tool_handlers(self) -> None:
         """Register tool handlers with the FastMCP server."""
         # Memory bank start tool
-        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank and load a custom prompt")
+        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank with context-aware detection")
         async def memory_bank_start_tool(
             prompt_name: Optional[str] = None,
             auto_detect: bool = True,
             current_path: Optional[str] = None,
-            force_type: Optional[str] = None
+            force_type: Optional[str] = None,
+            project_name: Optional[str] = None,
+            project_description: Optional[str] = None
         ) -> str:
-            """Initialize the memory bank and load a custom prompt."""
+            """Initialize the memory bank with context-aware detection.
+            
+            This enhanced tool can create projects, detect repositories, and initialize memory banks
+            based on the provided parameters and context.
+            """
             try:
-                logger.info(f"Starting memory bank with prompt: {prompt_name if prompt_name else 'default'}, " +
-                           f"auto_detect: {auto_detect}, path: {current_path}, force_type: {force_type}")
+                log_msg = f"Starting memory bank with prompt: {prompt_name if prompt_name else 'default'}, " + \
+                          f"auto_detect: {auto_detect}, path: {current_path}, force_type: {force_type}"
                 
-                # Call the core business logic
+                # Log project info if provided
+                if project_name:
+                    log_msg += f", project_name: {project_name}"
+                    if project_description:
+                        log_msg += f" (with description)"
+                
+                logger.info(log_msg)
+                
+                # Call the core business logic with all parameters
                 result = await start_memory_bank(
                     self.context_service,
                     prompt_name=prompt_name,
                     auto_detect=auto_detect,
                     current_path=current_path,
-                    force_type=force_type
+                    force_type=force_type,
+                    project_name=project_name,
+                    project_description=project_description
                 )
                 
                 selected_memory_bank = result["selected_memory_bank"]
@@ -436,13 +452,14 @@ Branch: {repo_info.get('branch', '')}
                 return f"Error selecting memory bank: {str(e)}"
         
         # Create project tool
-        @self.server.tool(name="create-project", description="Create a new project in the memory bank")
+        @self.server.tool(name="create-project", description="[DEPRECATED] Create a new project in the memory bank")
         async def create_project_tool(
             name: str, 
             description: str, 
             repository_path: Optional[str] = None
         ) -> str:
-            """Create a new project in the memory bank."""
+            """[DEPRECATED] Use memory-bank-start with project_name and project_description instead."""
+            logger.warning("create-project is deprecated, use memory-bank-start instead")
             try:
                 logger.info(f"Creating project: name={name}, repository_path={repository_path}")
                 
@@ -525,9 +542,10 @@ Branch: {repo_info.get('branch', '')}
                 return f"Error listing memory banks: {str(e)}"
         
         # Detect repository tool
-        @self.server.tool(name="detect-repository", description="Detect if a path is within a Git repository")
+        @self.server.tool(name="detect-repository", description="[DEPRECATED] Detect if a path is within a Git repository")
         async def detect_repository_tool(path: str) -> str:
-            """Detect if a path is within a Git repository."""
+            """[DEPRECATED] Use memory-bank-start with current_path instead."""
+            logger.warning("detect-repository is deprecated, use memory-bank-start instead")
             try:
                 logger.info(f"Detecting repository at path: {path}")
                 
@@ -561,12 +579,13 @@ Branch: {repo_info.get('branch', '')}
                 return f"Error detecting repository: {str(e)}"
         
         # Initialize repository memory bank tool
-        @self.server.tool(name="initialize-repository-memory-bank", description="Initialize a memory bank within a Git repository")
+        @self.server.tool(name="initialize-repository-memory-bank", description="[DEPRECATED] Initialize a memory bank within a Git repository")
         async def initialize_repository_memory_bank_tool(
             repository_path: str, 
             claude_project: Optional[str] = None
         ) -> str:
-            """Initialize a memory bank within a Git repository."""
+            """[DEPRECATED] Use memory-bank-start with current_path instead."""
+            logger.warning("initialize-repository-memory-bank is deprecated, use memory-bank-start instead")
             try:
                 logger.info(f"Initializing repository memory bank: path={repository_path}, project={claude_project}")
                 

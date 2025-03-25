@@ -562,28 +562,6 @@ Branch: {repo_info.get('branch', '')}
                         content
                     )
                     
-                    # Wait for a moment to ensure file operations complete
-                    await asyncio.sleep(0.1)
-                    
-                    # Verify that the file was actually updated
-                    try:
-                        # Get the file path
-                        file_name = self.context_service.CONTEXT_FILES[context_type]
-                        file_path = Path(memory_bank['path']) / file_name
-                        
-                        # Read back from file to verify it was written
-                        read_content = await self.context_service.get_context(context_type)
-                        
-                        # Check if content matches what we tried to write
-                        if read_content != content:
-                            logger.error(f"Verification failed for context update: content mismatch for {context_type}")
-                            return f"Error: Content verification failed for {context_type}. The file may not have been updated correctly."
-                        
-                        logger.info(f"Successfully verified context update for {context_type}")
-                    except Exception as e:
-                        logger.error(f"Error verifying context update: {str(e)}")
-                    
-                    
                     result_text = f"Context '{context_type}' updated successfully in "
                     result_text += f"{memory_bank['type']} memory bank."
                     
@@ -654,29 +632,6 @@ Branch: {repo_info.get('branch', '')}
                 # Call the core business logic
                 try:
                     memory_bank = await bulk_update_context(self.context_service, updates)
-                    
-                    # Wait for a moment to ensure file operations complete
-                    await asyncio.sleep(0.1)
-                    
-                    # Verify that the files were actually updated
-                    verification_passed = True
-                    for context_type, content in updates.items():
-                        try:
-                            # Read back from file to verify it was written
-                            read_content = await self.context_service.get_context(context_type)
-                            
-                            # Check if content matches what we tried to write
-                            if read_content != content:
-                                logger.error(f"Verification failed for bulk update: content mismatch for {context_type}")
-                                verification_passed = False
-                        except Exception as e:
-                            logger.error(f"Error verifying bulk update for {context_type}: {str(e)}")
-                            verification_passed = False
-                    
-                    if not verification_passed:
-                        return f"Error: Content verification failed for some context files. The updates may not have been applied correctly."
-                    
-                    logger.info(f"Successfully verified bulk update for {len(updates)} context files")
                     
                     result_text = f"Successfully updated {len(updates)} context files in "
                     result_text += f"{memory_bank['type']} memory bank.\n\n"

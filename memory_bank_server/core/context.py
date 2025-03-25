@@ -19,24 +19,6 @@ async def get_context(context_service, context_type: str) -> str:
     """
     return await context_service.get_context(context_type)
 
-async def update_context(
-    context_service,
-    context_type: str,
-    content: str
-) -> Dict[str, Any]:
-    """Core logic for updating a context file in the current memory bank.
-    
-    Args:
-        context_service: The context service instance
-        context_type: The type of context to update
-        content: The new content for the context file
-        
-    Returns:
-        Dictionary with memory bank information
-    """
-    return await context_service.update_context(context_type, content)
-
-
 async def bulk_update_context(
     context_service,
     updates: Dict[str, str]
@@ -53,11 +35,13 @@ async def bulk_update_context(
     return await context_service.bulk_update_context(updates)
 
 
-async def prune_context(
+# Internal helper function for pruning - used by memory-bank-start internally
+async def _prune_context_internal(
     context_service,
     max_age_days: int = 90
 ) -> Dict[str, Any]:
-    """Core logic for removing outdated information from context files.
+    """Internal helper for pruning context.
+    Not exposed as a tool - used by memory-bank-start.
     
     Args:
         context_service: The context service instance

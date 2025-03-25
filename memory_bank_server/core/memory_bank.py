@@ -42,7 +42,7 @@ async def start_memory_bank(
     # Step 1: Auto-detect repository if enabled
     detected_repo = None
     if auto_detect and not force_type:
-        detected_repo = await detect_repository(context_service, current_path)
+        detected_repo = await _detect_repository_internal(context_service, current_path)
         
         if detected_repo:
             actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
@@ -70,7 +70,7 @@ async def start_memory_bank(
                 repo_path = detected_repo.get('path') if detected_repo and not force_type else None
                 
                 # Create the project
-                project_info = await create_project(
+                project_info = await _create_project_internal(
                     context_service,
                     project_name,
                     project_description,
@@ -101,7 +101,7 @@ async def start_memory_bank(
         memory_bank_path = detected_repo.get('memory_bank_path')
         if not memory_bank_path or not os.path.exists(memory_bank_path):
             # Initialize and select in one step
-            selected_memory_bank = await initialize_repository_memory_bank(
+            selected_memory_bank = await _initialize_repository_memory_bank_internal(
                 context_service,
                 detected_repo.get('path', '')
             )
@@ -195,54 +195,36 @@ async def list_memory_banks(context_service) -> Dict[str, Any]:
         "available": all_memory_banks
     }
 
-async def detect_repository(context_service, path: str) -> Optional[Dict[str, Any]]:
-    """Core logic for detecting if a path is within a Git repository.
-    
-    Args:
-        context_service: The context service instance
-        path: The path to check
-        
-    Returns:
-        Repository information if detected, None otherwise
+# Internal helper functions for memory-bank-start
+# These are not exposed directly as tools but used by memory-bank-start internally
+
+async def _detect_repository_internal(context_service, path: str) -> Optional[Dict[str, Any]]:
+    """Internal helper for detecting repositories.
+    Not exposed as a tool - used by memory-bank-start.
     """
     return await context_service.repository_service.detect_repository(path)
 
-async def initialize_repository_memory_bank(
+async def _initialize_repository_memory_bank_internal(
     context_service,
     repository_path: str, 
     project_name: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Core logic for initializing a memory bank within a Git repository.
-    
-    Args:
-        context_service: The context service instance
-        repository_path: Path to the Git repository
-        project_name: Optional project name to associate with this repository
-        
-    Returns:
-        Dictionary with memory bank information
+    """Internal helper for initializing repository memory banks.
+    Not exposed as a tool - used by memory-bank-start.
     """
     return await context_service.repository_service.initialize_repository_memory_bank(
         repository_path,
         project_name
     )
 
-async def create_project(
+async def _create_project_internal(
     context_service,
     name: str, 
     description: str, 
     repository_path: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Core logic for creating a new project in the memory bank.
-    
-    Args:
-        context_service: The context service instance
-        name: The name of the project to create
-        description: A brief description of the project
-        repository_path: Optional path to a Git repository
-        
-    Returns:
-        Dictionary with project information
+    """Internal helper for creating projects.
+    Not exposed as a tool - used by memory-bank-start.
     """
     return await context_service.create_project(
         name,

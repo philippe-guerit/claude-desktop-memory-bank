@@ -18,16 +18,14 @@ from ..core import (
     start_memory_bank,
     select_memory_bank,
     list_memory_banks,
-    detect_repository,
-    initialize_repository_memory_bank,
-    create_project,
     get_context,
-    update_context,
     bulk_update_context,
-    prune_context,
     get_all_context,
     get_memory_bank_info
 )
+
+# Import internal helpers from context.py
+from ..core.context import _prune_context_internal
 
 logger = logging.getLogger(__name__)
 
@@ -350,25 +348,25 @@ Branch: {repo_info.get('branch', '')}
                     pruning_results = {}
                     
                     # Core architectural decisions: 180 days
-                    arch_results = await prune_context(self.context_service, 180)
+                    arch_results = await _prune_context_internal(self.context_service, 180)
                     for k, v in arch_results.items():
                         if k == "system_patterns":
                             pruning_results[k] = v
                     
                     # Technology choices: 90 days
-                    tech_results = await prune_context(self.context_service, 90)
+                    tech_results = await _prune_context_internal(self.context_service, 90)
                     for k, v in tech_results.items():
                         if k == "tech_context":
                             pruning_results[k] = v
                     
                     # Progress updates: 30 days
-                    progress_results = await prune_context(self.context_service, 30)
+                    progress_results = await _prune_context_internal(self.context_service, 30)
                     for k, v in progress_results.items():
                         if k == "progress" or k == "active_context":
                             pruning_results[k] = v
                     
                     # Other content: 90 days (default)
-                    default_results = await prune_context(self.context_service, 90)
+                    default_results = await _prune_context_internal(self.context_service, 90)
                     for k, v in default_results.items():
                         if k not in pruning_results:
                             pruning_results[k] = v
@@ -451,60 +449,7 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error selecting memory bank: {str(e)}")
                 return f"Error selecting memory bank: {str(e)}"
         
-        # Create project tool
-        @self.server.tool(name="create-project", description="[DEPRECATED] Create a new project in the memory bank")
-        async def create_project_tool(
-            name: str, 
-            description: str, 
-            repository_path: Optional[str] = None
-        ) -> str:
-            """[DEPRECATED] Use memory-bank-start with project_name and project_description instead."""
-            logger.warning("create-project is deprecated, use memory-bank-start instead")
-            try:
-                logger.info(f"Creating project: name={name}, repository_path={repository_path}")
-                
-                # Defer to memory-bank-start when possible
-                try:
-                    # Call memory-bank-start instead of direct create_project
-                    result = await start_memory_bank(
-                        self.context_service,
-                        project_name=name,
-                        project_description=description,
-                        current_path=repository_path if repository_path else None,
-                        force_type="project"  # Force project type to ensure project creation
-                    )
-                    
-                    actions_taken = result.get("actions_taken", [])
-                    created = any("Created project" in action for action in actions_taken)
-                    
-                    if created:
-                        result_text = f"Project '{name}' created successfully.\n"
-                        if repository_path:
-                            result_text += f"Associated with repository: {repository_path}\n"
-                        result_text += "This memory bank is now selected for the current conversation."
-                        return result_text
-                    else:
-                        # If memory-bank-start didn't create a project, fall back to direct method
-                        logger.warning("memory-bank-start didn't create project, falling back to direct method")
-                        project = await create_project(
-                            self.context_service,
-                            name, 
-                            description, 
-                            repository_path
-                        )
-                        
-                        result_text = f"Project '{name}' created successfully (using fallback method).\n"
-                        if repository_path:
-                            result_text += f"Associated with repository: {repository_path}\n"
-                        result_text += "This memory bank is now selected for the current conversation."
-                        
-                        return result_text
-                except ValueError as e:
-                    return str(e)
-                
-            except Exception as e:
-                logger.error(f"Error creating project: {str(e)}")
-                return f"Error creating project: {str(e)}"
+        # Removed deprecated create-project tool
         
         # List memory banks tool
         @self.server.tool(name="list-memory-banks", description="List all available memory banks")
@@ -562,134 +507,9 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error listing memory banks: {str(e)}")
                 return f"Error listing memory banks: {str(e)}"
         
-        # Detect repository tool
-        @self.server.tool(name="detect-repository", description="[DEPRECATED] Detect if a path is within a Git repository")
-        async def detect_repository_tool(path: str) -> str:
-            """[DEPRECATED] Use memory-bank-start with current_path instead."""
-            logger.warning("detect-repository is deprecated, use memory-bank-start instead")
-            try:
-                logger.info(f"Detecting repository at path: {path}")
-                
-                # First suggest the preferred approach
-                alternative_cmd = f"Use memory-bank-start with current_path=\"{path}\" instead. This provides repository detection and automatic memory bank initialization in one step."
-                
-                # Call the core business logic
-                repo_info = await detect_repository(self.context_service, path)
-                
-                if not repo_info:
-                    return f"No Git repository found at or above {path}.\n\n{alternative_cmd}"
-                
-                result_text = f"Git repository detected:\n"
-                result_text += f"Name: {repo_info.get('name', '')}\n"
-                result_text += f"Path: {repo_info.get('path', '')}\n"
-                
-                if repo_info.get('branch'):
-                    result_text += f"Branch: {repo_info.get('branch', '')}\n"
-                
-                if repo_info.get('remote_url'):
-                    result_text += f"Remote URL: {repo_info.get('remote_url', '')}\n"
-                
-                # Check if repository has a memory bank
-                memory_bank_path = repo_info.get('memory_bank_path')
-                if memory_bank_path and os.path.exists(memory_bank_path):
-                    result_text += f"Memory bank exists: Yes\n"
-                else:
-                    result_text += f"Memory bank exists: No\n"
-                    result_text += f"Use memory-bank-start with current_path=\"{path}\" to initialize the memory bank.\n"
-                
-                # Add the migration suggestion
-                result_text += f"\n[DEPRECATED] {alternative_cmd}"
-                
-                return result_text
-            except Exception as e:
-                logger.error(f"Error detecting repository: {str(e)}")
-                return f"Error detecting repository: {str(e)}"
+        # Removed deprecated detect-repository tool
         
-        # Initialize repository memory bank tool
-        @self.server.tool(name="initialize-repository-memory-bank", description="[DEPRECATED] Initialize a memory bank within a Git repository")
-        async def initialize_repository_memory_bank_tool(
-            repository_path: str, 
-            claude_project: Optional[str] = None
-        ) -> str:
-            """[DEPRECATED] Use memory-bank-start with current_path instead."""
-            logger.warning("initialize-repository-memory-bank is deprecated, use memory-bank-start instead")
-            try:
-                logger.info(f"Initializing repository memory bank: path={repository_path}, project={claude_project}")
-                
-                # Defer to memory-bank-start when possible
-                alternative_cmd = f"memory-bank-start(current_path=\"{repository_path}\""
-                if claude_project:
-                    alternative_cmd += f", project_name=\"{claude_project}\", project_description=\"Associated with repository\""
-                alternative_cmd += ")"
-                
-                try:
-                    # Use memory-bank-start to handle the initialization
-                    params = {
-                        "current_path": repository_path,
-                        "auto_detect": True,
-                    }
-                    
-                    # Add project parameters if project name was provided
-                    if claude_project:
-                        params["project_name"] = claude_project
-                        params["project_description"] = "Associated with repository"
-                    
-                    # Call memory-bank-start
-                    result = await start_memory_bank(self.context_service, **params)
-                    actions_taken = result.get("actions_taken", [])
-                    initialized = any("Initialized repository memory bank" in action for action in actions_taken)
-                    
-                    if initialized:
-                        memory_bank = result.get("selected_memory_bank", {})
-                        
-                        result_text = f"Repository memory bank initialized:\n"
-                        
-                        repo_info = memory_bank.get('repo_info', {})
-                        result_text += f"Repository: {repo_info.get('name', '')}\n"
-                        result_text += f"Repository path: {repo_info.get('path', '')}\n"
-                        
-                        if claude_project:
-                            result_text += f"Associated Claude project: {claude_project}\n"
-                        
-                        result_text += "This memory bank is now selected for the current conversation."
-                        
-                        # Add the migration suggestion
-                        result_text += f"\n\n[DEPRECATED] Use {alternative_cmd} instead."
-                        
-                        return result_text
-                    else:
-                        # Fall back to direct method
-                        logger.warning("memory-bank-start didn't initialize repository memory bank, falling back to direct method")
-                
-                except Exception as e:
-                    logger.error(f"Error using memory-bank-start, falling back to direct method: {str(e)}")
-                
-                # Fall back to the original implementation
-                memory_bank = await initialize_repository_memory_bank(
-                    self.context_service,
-                    repository_path, 
-                    claude_project
-                )
-                
-                result_text = f"Repository memory bank initialized:\n"
-                result_text += f"Path: {memory_bank['path']}\n"
-                
-                repo_info = memory_bank.get('repo_info', {})
-                result_text += f"Repository: {repo_info.get('name', '')}\n"
-                result_text += f"Repository path: {repo_info.get('path', '')}\n"
-                
-                if claude_project:
-                    result_text += f"Associated Claude project: {claude_project}\n"
-                
-                result_text += "This memory bank is now selected for the current conversation."
-                
-                # Add the migration suggestion
-                result_text += f"\n\n[DEPRECATED] Use {alternative_cmd} instead."
-                
-                return result_text
-            except Exception as e:
-                logger.error(f"Error initializing repository memory bank: {str(e)}")
-                return f"Error initializing repository memory bank: {str(e)}"
+        # Removed deprecated initialize-repository-memory-bank tool
         
 
         

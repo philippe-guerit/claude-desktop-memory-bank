@@ -426,6 +426,62 @@ After the initial implementation, we could consider these enhancements:
 7. **Context Importance Scoring**: Automatically determine which information is most important to persist
 8. **Remote Hosting**: Support for transparent remote hosting when MCP supports it
 
+## Simplified Architecture Design
+
+### Design Goals
+
+The Memory Bank Tool Simplification project was guided by these key design goals:
+
+1. **Reduce Cognitive Load**: Simplify the API to make it easier to understand and use
+2. **Maintain Functionality**: Preserve all existing capabilities
+3. **Improve Reliability**: Reduce potential for race conditions and errors
+4. **Enhance Autonomy**: Enable more autonomous operation with fewer explicit commands
+5. **Future-Proof**: Create a cleaner foundation for future enhancements
+
+### Key Design Decisions
+
+#### Unified Initialization with memory-bank-start
+
+The `memory-bank-start` tool now handles multiple responsibilities that were previously distributed across several tools:
+
+1. **Repository Detection**: Automatically identifies Git repositories
+2. **Project Creation**: Creates new projects when requested
+3. **Repository Initialization**: Sets up repository memory banks as needed
+4. **Project-Repository Association**: Links projects to repositories
+5. **Memory Bank Selection**: Selects the appropriate memory bank
+6. **Context Loading**: Retrieves and returns the complete memory bank content
+7. **Automatic Pruning**: Removes outdated content based on content type
+
+This unified approach eliminates race conditions that could occur when these operations were performed by separate tools in sequence. It also simplifies the mental model by having a single entry point for all initialization operations.
+
+#### Consolidation of Context Updates
+
+All context updates now go through the `bulk-update-context` tool, which can update multiple context files in a single operation. This replaces the previous approach of having separate tools for different update scenarios.
+
+Benefits of this approach:
+- Fewer API calls for common operations
+- Consistent pattern for all context updates
+- Reduced likelihood of conflicting updates
+
+#### Autonomy Through Custom Instructions
+
+Rather than relying on explicit tool calls for operations like auto-summarization and pruning, the system now leverages Claude's custom instructions to perform these operations autonomously:
+
+- **Auto-summarization**: Claude intelligently extracts and updates context based on conversation
+- **Automatic Pruning**: Integrated into `memory-bank-start` with content-specific age thresholds
+- **Smart Update Detection**: Claude monitors for significant information worth persisting
+
+### Migration Path
+
+To support users migrating from the previous toolset, we've implemented a transition period where:
+
+1. Deprecated tools remain functional but display warnings
+2. Deprecated tools defer to the new unified tools when possible
+3. Clear migration suggestions are provided in responses
+4. Comprehensive documentation guides users to the new approach
+
+This ensures a smooth transition while maintaining backward compatibility during the adaptation period.
+
 ## Conclusion
 
 The Claude Desktop Memory Bank MCP server provides an autonomous memory system that enables Claude to maintain context across sessions using the Model Context Protocol. The system operates in the background with minimal user interaction, creating a seamless experience where context persists naturally across conversations.

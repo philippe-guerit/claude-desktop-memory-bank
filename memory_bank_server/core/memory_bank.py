@@ -13,7 +13,9 @@ async def start_memory_bank(
     prompt_name: Optional[str] = None,
     auto_detect: bool = True,
     current_path: Optional[str] = None,
-    force_type: Optional[str] = None
+    force_type: Optional[str] = None,
+    project_name: Optional[str] = None,
+    project_description: Optional[str] = None
 ) -> Dict[str, Any]:
     """Core business logic for starting a memory bank.
     
@@ -23,18 +25,12 @@ async def start_memory_bank(
         auto_detect: Whether to automatically detect repositories
         current_path: Path to check for repository
         force_type: Force a specific memory bank type
+        project_name: Optional name for creating a new project
+        project_description: Optional description for creating a new project
         
     Returns:
         Dictionary containing the result data
     """
-    # Initialize tracking variables
-    actions_taken = []
-    selected_memory_bank = None
-    
-    # Use current working directory if path not provided
-    if not current_path:
-        current_path = os.getcwd()
-    
     # Initialize tracking variables
     actions_taken = []
     selected_memory_bank = None
@@ -51,8 +47,56 @@ async def start_memory_bank(
         if detected_repo:
             actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
     
-    # Step 2: Initialize repository memory bank if needed and immediately select it
-    if detected_repo and not force_type:
+    # Step 2: Handle project creation if requested
+    project_created = False
+    if project_name and project_description:
+        # Skip project creation when in a repository with existing memory bank
+        # unless explicitly forced to create a project
+        should_create_project = True
+        
+        if detected_repo and not force_type:
+            # Check if memory bank exists for this repository
+            memory_bank_path = detected_repo.get('memory_bank_path')
+            has_memory_bank = memory_bank_path and os.path.exists(memory_bank_path)
+            
+            if has_memory_bank:
+                # Skip project creation if in a repository with existing memory bank
+                should_create_project = False
+                actions_taken.append(f"Skipped project creation - using existing repository memory bank")
+        
+        if should_create_project:
+            try:
+                # If we detected a repository and no force_type is set, associate with repository
+                repo_path = detected_repo.get('path') if detected_repo and not force_type else None
+                
+                # Create the project
+                project_info = await create_project(
+                    context_service,
+                    project_name,
+                    project_description,
+                    repo_path
+                )
+                
+                actions_taken.append(f"Created project: {project_name}")
+                if repo_path:
+                    actions_taken.append(f"Associated project with repository: {detected_repo.get('name', '')}")
+                    
+                # Set selected memory bank to the new project
+                if not force_type:
+                    selected_memory_bank = await select_memory_bank(
+                        context_service,
+                        type="project",
+                        project_name=project_name
+                    )
+                    actions_taken.append(f"Selected new project memory bank: {project_name}")
+                    project_created = True
+                    
+            except Exception as e:
+                error_msg = str(e)
+                actions_taken.append(f"Failed to create project: {error_msg}")
+    
+    # Step 3: Initialize repository memory bank if needed and no project was created
+    if detected_repo and not force_type and not selected_memory_bank:
         # Check if memory bank exists for this repository
         memory_bank_path = detected_repo.get('memory_bank_path')
         if not memory_bank_path or not os.path.exists(memory_bank_path):
@@ -73,7 +117,7 @@ async def start_memory_bank(
             )
             actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
     
-    # Step 3: Handle forced memory bank type if specified
+    # Step 4: Handle forced memory bank type if specified
     if force_type and not selected_memory_bank:
         if force_type == "global":
             selected_memory_bank = await select_memory_bank(context_service)

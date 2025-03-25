@@ -327,7 +327,48 @@ Branch: {repo_info.get('branch', '')}
                     if isinstance(result, list) and result and 'content' in result[0]:
                         prompt_content = result[0]['content']
                 
-                # Get all context from the selected memory bank
+                # Run automatic pruning before retrieving context
+                logger.info("Automatically pruning outdated context")
+                try:
+                    # Apply different age thresholds for different context types
+                    pruning_results = {}
+                    
+                    # Core architectural decisions: 180 days
+                    arch_results = await prune_context(self.context_service, 180)
+                    for k, v in arch_results.items():
+                        if k == "system_patterns":
+                            pruning_results[k] = v
+                    
+                    # Technology choices: 90 days
+                    tech_results = await prune_context(self.context_service, 90)
+                    for k, v in tech_results.items():
+                        if k == "tech_context":
+                            pruning_results[k] = v
+                    
+                    # Progress updates: 30 days
+                    progress_results = await prune_context(self.context_service, 30)
+                    for k, v in progress_results.items():
+                        if k == "progress" or k == "active_context":
+                            pruning_results[k] = v
+                    
+                    # Other content: 90 days (default)
+                    default_results = await prune_context(self.context_service, 90)
+                    for k, v in default_results.items():
+                        if k not in pruning_results:
+                            pruning_results[k] = v
+                    
+                    # Log pruning results
+                    pruned_total = sum([r.get("pruned_sections", 0) for r in pruning_results.values() if "error" not in r])
+                    if pruned_total > 0:
+                        actions_taken.append(f"Automatically pruned {pruned_total} outdated sections from context files")
+                    else:
+                        actions_taken.append("No outdated sections found during automatic pruning")
+                        
+                except Exception as e:
+                    logger.error(f"Error during automatic pruning: {str(e)}")
+                    actions_taken.append(f"Automatic pruning failed: {str(e)}")
+                
+                # Get all context from the selected memory bank (after pruning)
                 contexts = await get_all_context(self.context_service)
                 
                 # Add special tag for Claude to recognize and format
@@ -613,52 +654,7 @@ Branch: {repo_info.get('branch', '')}
         
 
         
-        # Prune context tool
-        @self.server.tool(name="prune-context", description="Remove outdated information from context files")
-        async def prune_context_tool(max_age_days: int = 90) -> str:
-            """Remove outdated information from context files."""
-            try:
-                logger.info(f"Pruning context older than {max_age_days} days")
-                
-                # Call the core business logic
-                pruning_results = await prune_context(
-                    self.context_service,
-                    max_age_days
-                )
-                
-                if not pruning_results:
-                    return "No outdated content found to prune."
-                
-                memory_bank_info = await get_memory_bank_info(self.context_service)
-                current_memory_bank = memory_bank_info["current"]
-                
-                result_text = f"Pruning results for {current_memory_bank['type']} memory bank:\n\n"
-                
-                pruned_total = 0
-                kept_total = 0
-                
-                # Add details for each context type
-                for context_type, result in pruning_results.items():
-                    if "error" in result:
-                        result_text += f"- {context_type.replace('_', ' ').title()}: Error - {result['error']}\n"
-                    else:
-                        pruned = result.get("pruned_sections", 0)
-                        kept = result.get("kept_sections", 0)
-                        
-                        if pruned > 0:
-                            result_text += f"- {context_type.replace('_', ' ').title()}: Pruned {pruned} sections, kept {kept} sections\n"
-                            pruned_total += pruned
-                            kept_total += kept
-                
-                if pruned_total > 0:
-                    result_text += f"\nTotal: Pruned {pruned_total} sections, kept {kept_total} sections"
-                else:
-                    result_text += "\nNo sections were old enough to prune."
-                
-                return result_text
-            except Exception as e:
-                logger.error(f"Error pruning context: {str(e)}")
-                return f"Error pruning context: {str(e)}"
+
     
     # Prompt handlers
     

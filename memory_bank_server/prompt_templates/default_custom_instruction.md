@@ -23,32 +23,16 @@
    ACTION: CALL bulk-update-context WITH {updates object}
    ```
 
-3. **COMMAND: PERFORM CONTEXT MAINTENANCE**
-   ```
-   WHEN: Loading these instructions for the first time in a conversation
-   ACTION: CALL prune-context WITH max_age_days=90
-   ```
-
 ## IMMEDIATE INITIALIZATION ACTIONS
 
 When loading these custom instructions, immediately respond with:
 
-🟢 **MEMORY BANK ONLINE**: Custom memory bank instructions loaded (v1.2). Ready for autonomous context management.
+🟢 **MEMORY BANK ONLINE**: Custom memory bank instructions loaded (v1.3). Ready for autonomous context management.
 
 Then EXECUTE these commands:
 
 1. **COMMAND: Assess Memory Bank Content** - Review all context to understand current state
-2. **COMMAND: Prune Outdated Information** - Call prune-context with appropriate age threshold using sliding scale:
-   - Critical decisions/architecture: 180 days
-   - Technology choices: 90 days
-   - Progress updates: 30 days  
-   - Implementation details: 14 days
-   - Cap each context file at ~500 tokens (not combined total)
-   - Use prefix `[CORE]` to flag items for permanent retention
-   - Preserve important architectural decisions regardless of age
-   - Remove obsolete technical notes and status updates
-   - Keep core project requirements and goals
-3. **COMMAND: Update if Meaningful Information Present** - Add any relevant new information
+2. **COMMAND: Update if Meaningful Information Present** - Add any relevant new information
 
 ## Overview
 
@@ -75,11 +59,11 @@ COMMAND: Update context when **meaningful progress** occurs, specifically:
 
 1. **After Key Information Exchange**
    - DETECT: User shares critical project information
-   - ACTION: Call update-context with relevant context type
+   - ACTION: Call bulk-update-context with relevant context type
 
 2. **At Conversation Milestones**
    - DETECT: Resolution of a specific problem
-   - ACTION: Call update-context with progress context type
+   - ACTION: Call bulk-update-context with progress context type
 
 3. **End of Productive Sessions**
    - DETECT: Conversation ending with substantial new information

@@ -57,28 +57,27 @@ class TestArchitectureIntegration:
         # Initialize the server
         await server.initialize()
         
-        # Update the context in global memory bank
-        project_brief_content = "# Test Project Brief\n\nThis is a test project."
-        result = await server.direct.update_context(
-            context_type="project_brief",
-            content=project_brief_content
+        # Start memory bank with global type
+        result = await server.direct.start_memory_bank(
+            force_type="global"
         )
         
         # Verify the memory bank is global
-        assert result["type"] == "global"
+        assert result["selected_memory_bank"]["type"] == "global"
+        
+        # Update the context in global memory bank
+        project_brief_content = "# Test Project Brief\n\nThis is a test project."
+        updates = {"project_brief": project_brief_content}
+        update_result = await server.direct.bulk_update_context(updates=updates)
+        
+        # Verify the update was successful
+        assert update_result["type"] == "global"
         
         # Get the context back
         retrieved_content = await server.direct.get_project_brief()
         
         # Verify the content is correct
         assert retrieved_content == project_brief_content
-        
-        # Search the context
-        search_result = await server.direct.search_context(query="test project")
-        
-        # Verify the search result contains the brief
-        assert "project_brief" in search_result
-        assert len(search_result["project_brief"]) > 0
         
         # Get all available memory banks
         memory_banks = await server.direct.list_memory_banks()
@@ -92,25 +91,23 @@ class TestArchitectureIntegration:
         # Initialize the server
         await server.initialize()
         
-        # Create a new project
-        project_result = await server.direct.create_project(
-            name="test-project",
-            description="A test project"
+        # Start memory bank with project creation
+        project_result = await server.direct.start_memory_bank(
+            project_name="test-project",
+            project_description="A test project"
         )
         
         # Verify the project was created
-        assert project_result["name"] == "test-project"
+        assert project_result["selected_memory_bank"]["type"] == "project"
+        assert "Created project" in " ".join(project_result["actions_taken"])
         
         # Update the context in the project memory bank
         project_brief_content = "# Test Project Brief\n\nThis is a test project."
-        result = await server.direct.update_context(
-            context_type="project_brief",
-            content=project_brief_content
-        )
+        updates = {"project_brief": project_brief_content}
+        result = await server.direct.bulk_update_context(updates=updates)
         
         # Verify the memory bank is for the project
         assert result["type"] == "project"
-        assert result["project"] == "test-project"
         
         # Get the context back
         retrieved_content = await server.direct.get_project_brief()
@@ -142,28 +139,19 @@ class TestArchitectureIntegration:
         # Initialize the server
         await server.initialize()
         
-        # Detect the repository
-        repo_info = await server.direct.detect_repository(path=temp_git_repo)
-        
-        # Verify the repository was detected
-        assert repo_info["name"] == os.path.basename(temp_git_repo)
-        assert repo_info["path"] == temp_git_repo
-        
-        # Initialize the repository memory bank
-        repo_mb = await server.direct.initialize_repository_memory_bank(
-            repository_path=temp_git_repo
+        # Start memory bank with repository path
+        repo_result = await server.direct.start_memory_bank(
+            current_path=temp_git_repo
         )
         
         # Verify the memory bank was initialized
-        assert repo_mb["type"] == "repository"
-        assert repo_mb["repo_info"]["name"] == os.path.basename(temp_git_repo)
+        assert repo_result["selected_memory_bank"]["type"] == "repository"
+        assert "Detected repository" in " ".join(repo_result["actions_taken"])
         
         # Update the context in the repository memory bank
         project_brief_content = "# Test Repository Brief\n\nThis is a test repository."
-        result = await server.direct.update_context(
-            context_type="project_brief",
-            content=project_brief_content
-        )
+        updates = {"project_brief": project_brief_content}
+        result = await server.direct.bulk_update_context(updates=updates)
         
         # Verify the memory bank is for the repository
         assert result["type"] == "repository"
@@ -211,21 +199,6 @@ class TestArchitectureIntegration:
         assert all_context["project_brief"] == updates["project_brief"]
         assert all_context["active_context"] == updates["active_context"]
         assert all_context["progress"] == updates["progress"]
-        
-        # Test auto-summarize
-        conversation_text = """
-        This project is a memory bank system.
-        It maintains context across conversations.
-        Current progress: finished refactoring the architecture.
-        """
-        
-        auto_result = await server.direct.auto_summarize_context(
-            conversation_text=conversation_text
-        )
-        
-        # Verify that summarization extracted content
-        assert "project_brief" in auto_result
-        assert "memory bank" in auto_result["project_brief"].lower()
     
     @pytest.mark.asyncio
     async def test_cross_memory_bank_context_isolation(self, server):
@@ -233,25 +206,22 @@ class TestArchitectureIntegration:
         # Initialize the server
         await server.initialize()
         
+        # Start with global memory bank
+        await server.direct.start_memory_bank(force_type="global")
+        
         # Update the global context
         global_brief = "# Global Brief\n\nThis is the global brief."
-        await server.direct.update_context(
-            context_type="project_brief",
-            content=global_brief
-        )
+        await server.direct.bulk_update_context(updates={"project_brief": global_brief})
         
         # Create a project
-        await server.direct.create_project(
-            name="isolation-test",
-            description="Testing context isolation"
+        await server.direct.start_memory_bank(
+            project_name="isolation-test",
+            project_description="Testing context isolation"
         )
         
         # Update the project context
         project_brief = "# Project Brief\n\nThis is the project brief."
-        await server.direct.update_context(
-            context_type="project_brief",
-            content=project_brief
-        )
+        await server.direct.bulk_update_context(updates={"project_brief": project_brief})
         
         # Get the project context
         retrieved_project_brief = await server.direct.get_project_brief()

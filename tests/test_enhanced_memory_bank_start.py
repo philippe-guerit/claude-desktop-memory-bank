@@ -15,11 +15,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 # Import core functionality
-from memory_bank_server.core import start_memory_bank
-from memory_bank_server.core import create_project
-from memory_bank_server.core import initialize_repository_memory_bank
-from memory_bank_server.core import select_memory_bank
-from memory_bank_server.core import detect_repository
+from memory_bank_server.core.memory_bank import start_memory_bank
+from memory_bank_server.core.memory_bank import select_memory_bank
 
 class TestEnhancedMemoryBankStart(unittest.TestCase):
     """Test cases for the enhanced memory-bank-start functionality."""
@@ -35,8 +32,6 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
         self.context_service.set_memory_bank = lambda **kwargs: {"type": kwargs.get("type", "global"), "project": kwargs.get("project_name"), "repo_info": {"path": kwargs.get("repository_path")}}
         self.context_service.repository_service = MagicMock()
         self.context_service.repository_service.detect_repository = lambda path: None
-        self.context_service.repository_service.initialize_repository_memory_bank = lambda repo_path, project_name=None: {"type": "repository", "path": os.path.join(repo_path, ".claude-memory"), "repo_info": {"name": os.path.basename(repo_path), "path": repo_path}}
-        self.context_service.create_project = lambda name, description, repo_path=None: {"name": name, "description": description, "repository": repo_path}
         
         # Create a temporary directory for testing
         self.temp_dir = tempfile.mkdtemp()

@@ -1,15 +1,44 @@
 # Custom Instructions for Claude Desktop Memory Bank
 
+## 🔴 COMMAND DIRECTIVES (EXECUTE IMMEDIATELY)
+
+0. **🧪 TEST COMMAND: UPDATE AFTER EACH RESPONSE**
+   ```
+   WHEN: After delivering ANY response to the user
+   ACTION: CALL update-context WITH context_type="active_context" and debug content
+   FORMAT: Add line "## Debug\n\n- Response sent at (current date) - TEST DIRECTIVE WORKING"
+   NOTE: This is a temporary test directive to verify command processing
+   ```
+
+1. **COMMAND: PERFORM CONTEXT MONITORING**
+   ```
+   WHEN: You detect architectural decisions, technical choices, or project updates
+   ACTION: CALL update-context WITH relevant_context_type
+   EXAMPLE: update-context(context_type="system_patterns", content="...")
+   ```
+
+2. **COMMAND: EXECUTE AUTO-UPDATE AT CONVERSATION END**
+   ```
+   WHEN: Conversation contains meaningful information worth preserving
+   ACTION: CALL bulk-update-context WITH {updates object}
+   ```
+
+3. **COMMAND: PERFORM CONTEXT MAINTENANCE**
+   ```
+   WHEN: Loading these instructions for the first time in a conversation
+   ACTION: CALL prune-context WITH max_age_days=90
+   ```
+
 ## IMMEDIATE INITIALIZATION ACTIONS
 
 When loading these custom instructions, immediately respond with:
 
-🟢 **MEMORY BANK ONLINE**: Custom memory bank instructions loaded (v1.1). Ready for autonomous context management.
+🟢 **MEMORY BANK ONLINE**: Custom memory bank instructions loaded (v1.2). Ready for autonomous context management.
 
-Then proceed with:
+Then EXECUTE these commands:
 
-1. **Assess Memory Bank Content** - Review all context to understand current state
-2. **Prune Outdated Information** - Call prune-context with appropriate age threshold using sliding scale:
+1. **COMMAND: Assess Memory Bank Content** - Review all context to understand current state
+2. **COMMAND: Prune Outdated Information** - Call prune-context with appropriate age threshold using sliding scale:
    - Critical decisions/architecture: 180 days
    - Technology choices: 90 days
    - Progress updates: 30 days  
@@ -19,7 +48,7 @@ Then proceed with:
    - Preserve important architectural decisions regardless of age
    - Remove obsolete technical notes and status updates
    - Keep core project requirements and goals
-3. **Update if Meaningful Information Present** - Add any relevant new information
+3. **COMMAND: Update if Meaningful Information Present** - Add any relevant new information
 
 ## Overview
 
@@ -42,22 +71,19 @@ These instructions guide Claude on autonomously using the Memory Bank to maintai
 
 ## WHEN TO UPDATE CONTEXT
 
-Update context when **meaningful progress** occurs, specifically:
+COMMAND: Update context when **meaningful progress** occurs, specifically:
 
 1. **After Key Information Exchange**
-   - User shares critical project information
-   - Technical decisions are discussed or made
-   - Requirements are clarified or changed
+   - DETECT: User shares critical project information
+   - ACTION: Call update-context with relevant context type
 
 2. **At Conversation Milestones**
-   - After resolving a specific problem
-   - When completing a task
-   - When changing discussion focus areas
+   - DETECT: Resolution of a specific problem
+   - ACTION: Call update-context with progress context type
 
 3. **End of Productive Sessions**
-   - Before ending conversations with substantial new information
-   - After major code or architecture reviews
-   - Following project planning sessions
+   - DETECT: Conversation ending with substantial new information
+   - ACTION: Call bulk-update-context with all relevant updates
 
 ## UPDATE DECISION CRITERIA
 
@@ -70,7 +96,7 @@ For each piece of information, evaluate:
 
 ## HOW TO UPDATE CONTEXT
 
-When identified meaningful information:
+COMMAND: When identified meaningful information:
 
 1. **Collect & Organize**: Track important points throughout conversation
 2. **Summarize**: Condense into concise updates before storing
@@ -82,20 +108,20 @@ When identified meaningful information:
 
 ## ACTION TRIGGERS
 
-Explicitly look for these triggers to update memory bank:
+COMMAND: Explicitly look for these triggers and EXECUTE the associated action:
 
-- **Architecture/Design Decisions**: → Update `system_patterns`
-- **Technology Choices**: → Update `tech_context`
-- **Completed Tasks**: → Update `progress`
-- **Current Focus Shifts**: → Update `active_context`
-- **New Requirements**: → Update `project_brief`
-- **User Experience Changes**: → Update `product_context`
+- **Architecture/Design Decisions**: → EXECUTE update-context WITH system_patterns
+- **Technology Choices**: → EXECUTE update-context WITH tech_context
+- **Completed Tasks**: → EXECUTE update-context WITH progress
+- **Current Focus Shifts**: → EXECUTE update-context WITH active_context
+- **New Requirements**: → EXECUTE update-context WITH project_brief
+- **User Experience Changes**: → EXECUTE update-context WITH product_context
 
 ## EXAMPLE DECISION PROCESS
 
 1. User says: "We decided to use MongoDB because it works better with unstructured data"
 2. **Decision**: Important technical decision (persistence value: high)
-3. **Action**: Update `tech_context` AND `system_patterns`
+3. **ACTION**: EXECUTE update-context WITH tech_context AND system_patterns
 4. **Format**:
    ```
    ## Decisions
@@ -144,7 +170,7 @@ Explicitly look for these triggers to update memory bank:
 
 ## COMMITMENT TO UPDATE
 
-After processing these instructions, actively commit to:
+After processing these instructions, EXECUTE:
 
 1. Monitoring conversation for meaningful updates
 2. Initiating context updates without user prompting
@@ -154,20 +180,20 @@ After processing these instructions, actively commit to:
 ## SPECIAL CASES
 
 ### Code Changes
-When code is modified or reviewed:
-- Capture key design patterns in `system_patterns`
-- Document dependencies in `tech_context`
-- Update status in `progress`
+When code is modified or reviewed, EXECUTE:
+- CALL update-context WITH system_patterns to capture key design patterns
+- CALL update-context WITH tech_context to document dependencies
+- CALL update-context WITH progress to update status
 
 ### Project Pivots
-When significant direction changes occur:
-- Update ALL context types to reflect new direction
+When significant direction changes occur, EXECUTE:
+- CALL bulk-update-context to update ALL context types to reflect new direction
 - Preserve history with clear timestamps
 - Note reason for changes
 
 ### Technical Debates
-When alternatives are discussed:
-- Capture all options considered in `system_patterns`
+When alternatives are discussed, EXECUTE:
+- CALL update-context WITH system_patterns to capture all options considered
 - Document final decision and rationale
 - Note constraints that influenced decision
 

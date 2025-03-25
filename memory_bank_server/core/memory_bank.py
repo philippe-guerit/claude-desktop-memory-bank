@@ -35,30 +35,10 @@ async def start_memory_bank(
     if not current_path:
         current_path = os.getcwd()
     
-    # Step 1: Auto-detect repository if enabled
-    detected_repo = None
-    if auto_detect and not force_type:
-        detected_repo = await detect_repository(context_service, current_path)
-        
-        if detected_repo:
-            actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
-    
-    # Step 2: Initialize repository memory bank if needed
-    if detected_repo and not force_type:
-        # Check if memory bank exists for this repository
-        memory_bank_path = detected_repo.get('memory_bank_path')
-        if not memory_bank_path or not os.path.exists(memory_bank_path):
-            repo_memory_bank = await initialize_repository_memory_bank(
-                context_service,
-                detected_repo.get('path', '')
-            )
-            actions_taken.append(f"Initialized repository memory bank for: {detected_repo.get('name', '')}")
-            selected_memory_bank = repo_memory_bank
-        else:
-            actions_taken.append(f"Using existing repository memory bank: {detected_repo.get('name', '')}")
-    
-    # Step 3: Select appropriate memory bank based on detection or force_type
+    # Step 1: First determine which memory bank to use by either force_type, 
+    # auto-detection, or falling back to current
     if force_type:
+        # Handle forced memory bank type
         if force_type == "global":
             selected_memory_bank = await select_memory_bank(context_service)
             actions_taken.append("Forced selection of global memory bank")
@@ -80,15 +60,31 @@ async def start_memory_bank(
             actions_taken.append(f"Forced selection of repository memory bank: {repo_path}")
         else:
             actions_taken.append(f"Warning: Invalid force_type: {force_type}. Using default selection.")
+    elif auto_detect:
+        # Auto-detect repository and use it if found
+        detected_repo = await detect_repository(context_service, current_path)
+        
+        if detected_repo:
+            actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
             
-    elif detected_repo and not selected_memory_bank:
-        # We detected a repo but didn't initialize a memory bank (it already existed)
-        selected_memory_bank = await select_memory_bank(
-            context_service,
-            type="repository",
-            repository_path=detected_repo.get('path', '')
-        )
-        actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
+            # Check if memory bank exists for this repository
+            memory_bank_path = detected_repo.get('memory_bank_path')
+            if not memory_bank_path or not os.path.exists(memory_bank_path):
+                # Initialize repository memory bank if it doesn't exist
+                selected_memory_bank = await initialize_repository_memory_bank(
+                    context_service,
+                    detected_repo.get('path', '')
+                )
+                actions_taken.append(f"Initialized repository memory bank for: {detected_repo.get('name', '')}")
+            else:
+                # Repository memory bank exists, just select it
+                actions_taken.append(f"Using existing repository memory bank: {detected_repo.get('name', '')}")
+                selected_memory_bank = await select_memory_bank(
+                    context_service,
+                    type="repository",
+                    repository_path=detected_repo.get('path', '')
+                )
+                actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
     
     # If no memory bank was selected yet, get the current memory bank
     if not selected_memory_bank:

@@ -8,9 +8,12 @@ import os
 import json
 import shutil
 import asyncio
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Any
+
+logger = logging.getLogger(__name__)
 
 class StorageService:
     """Service for handling storage operations in the Memory Bank system."""
@@ -130,17 +133,29 @@ class StorageService:
         Returns:
             Path to the repository memory bank
         """
-        repo_mb_path = self.repositories_path / repo_name
-        repo_mb_path.mkdir(exist_ok=True)
+        # Get repository record
+        repo_record = await self.get_repository_record(repo_name)
+        if not repo_record:
+            logger.error(f"Repository {repo_name} not found in registry")
+            raise ValueError(f"Repository {repo_name} not found in registry")
+        
+        repo_path = Path(repo_record["path"])
+        memory_bank_path = repo_path / ".claude-memory"
+        memory_bank_path.mkdir(exist_ok=True)
         
         # Initialize repository files from templates
         for template_name in ["projectbrief.md", "productContext.md", "systemPatterns.md", 
                             "techContext.md", "activeContext.md", "progress.md"]:
             template_content = await self.get_template(template_name)
-            file_path = repo_mb_path / template_name
+            file_path = memory_bank_path / template_name
             await self.write_file(file_path, template_content)
         
-        return str(repo_mb_path)
+        # Update the last accessed timestamp
+        repo_record["last_accessed"] = self.get_current_timestamp()
+        record_path = self.repositories_path / f"{repo_name}.json"
+        await self.write_file(record_path, json.dumps(repo_record, indent=2))
+        
+        return str(memory_bank_path)
     
     # Project operations
     
@@ -188,18 +203,23 @@ class StorageService:
     
     # Repository operations
     
-    async def register_repository(self, repo_path: str, repo_name: str, project_name: Optional[str] = None) -> None:
+    async def register_repository(self, repo_path: str, repo_name: str, project_name: Optional[str] = None, remote_url: Optional[str] = None, branch: Optional[str] = None) -> None:
         """Register a repository in the memory bank system.
         
         Args:
             repo_path: Path to the repository
             repo_name: Name of the repository
             project_name: Name of the associated project (optional)
+            remote_url: Remote URL of the repository (optional)
+            branch: Current branch of the repository (optional)
         """
         repo_record = {
             "path": repo_path,
             "name": repo_name,
-            "project": project_name
+            "project": project_name,
+            "remote_url": remote_url,
+            "branch": branch,
+            "last_accessed": self.get_current_timestamp()
         }
         
         # Save repository record
@@ -216,7 +236,7 @@ class StorageService:
                     await self.write_file(project_metadata_path, json.dumps(metadata, indent=2))
             except Exception as e:
                 # Log error but don't fail the registration
-                print(f"Error updating project metadata: {str(e)}")
+                logger.error(f"Error updating project metadata: {str(e)}")
     
     async def get_repository_record(self, repo_name: str) -> Optional[Dict[str, Any]]:
         """Get repository record by name.
@@ -254,9 +274,47 @@ class StorageService:
         Returns:
             Path to the repository memory bank or None if not found
         """
-        repo_mb_path = self.repositories_path / repo_name
-        if repo_mb_path.exists() and repo_mb_path.is_dir():
-            return str(repo_mb_path)
+        # Get repository record
+        repo_record = await self.get_repository_record(repo_name)
+        if not repo_record:
+            logger.error(f"Repository {repo_name} not found in registry")
+            return None
+        
+        # Build path to the .claude-memory directory in the repository
+        repo_path = Path(repo_record["path"])
+        memory_bank_path = repo_path / ".claude-memory"
+        
+        # Check if the directory exists
+        if memory_bank_path.exists() and memory_bank_path.is_dir():
+            # Update last accessed timestamp
+            repo_record["last_accessed"] = self.get_current_timestamp()
+            record_path = self.repositories_path / f"{repo_name}.json"
+            await self.write_file(record_path, json.dumps(repo_record, indent=2))
+            
+            return str(memory_bank_path)
+        
+        # Attempt to migrate from legacy location if it exists
+        legacy_path = self.repositories_path / repo_name
+        if legacy_path.exists() and legacy_path.is_dir():
+            # Create the .claude-memory directory if it doesn't exist
+            if not memory_bank_path.exists():
+                memory_bank_path.mkdir(parents=True, exist_ok=True)
+            
+            # Copy files from legacy path to new path
+            for file_name in os.listdir(legacy_path):
+                legacy_file = legacy_path / file_name
+                new_file = memory_bank_path / file_name
+                
+                if legacy_file.is_file() and not new_file.exists():
+                    try:
+                        content = await self.read_file(legacy_file)
+                        await self.write_file(new_file, content)
+                        logger.info(f"Migrated {file_name} from legacy location to repository memory bank")
+                    except Exception as e:
+                        logger.error(f"Error migrating file {file_name}: {str(e)}")
+            
+            return str(memory_bank_path)
+        
         return None
     
     # Context file operations
@@ -285,6 +343,19 @@ class StorageService:
         file_path = Path(memory_bank_path) / file_name
         await self.write_file(file_path, content)
         
+        # Wait briefly to ensure file operations complete
+        await asyncio.sleep(0.1)
+        
+        # Verify the file was written correctly
+        try:
+            read_content = await self.read_file(file_path)
+            if read_content != content:
+                logger.error(f"File verification failed for {file_path}")
+                raise IOError(f"File verification failed for {file_path}")
+        except Exception as e:
+            logger.error(f"Error verifying file write: {str(e)}")
+            raise
+        
         # If this is a project memory bank, update the last modified timestamp
         if str(self.projects_path) in str(file_path):
             project_name = file_path.parent.name
@@ -292,8 +363,8 @@ class StorageService:
                 metadata = await self.get_project_metadata(project_name)
                 metadata["lastModified"] = self.get_current_timestamp()
                 await self.update_project_metadata(project_name, metadata)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error updating project metadata: {str(e)}")
     
     # File I/O operations
     

@@ -7,10 +7,13 @@ This service handles Git repository detection and management.
 import os
 import subprocess
 import asyncio
+import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from .storage_service import StorageService
+
+logger = logging.getLogger(__name__)
 
 class RepositoryService:
     """Service for handling Git repository operations in the Memory Bank system."""
@@ -72,11 +75,17 @@ class RepositoryService:
         repo_info = await asyncio.get_event_loop().run_in_executor(None, self.get_repository_info, repo_path)
         repo_name = repo_info["name"]
         
-        # Create memory bank for repository
-        memory_bank_path = await self.storage_service.create_repository_memory_bank(repo_name)
+        # Register repository with branch and remote URL
+        await self.storage_service.register_repository(
+            repo_path, 
+            repo_name, 
+            project_name,
+            repo_info.get("remote_url"),
+            repo_info.get("branch")
+        )
         
-        # Register repository
-        await self.storage_service.register_repository(repo_path, repo_name, project_name)
+        # Create memory bank for repository - this will create .claude-memory in the repo
+        memory_bank_path = await self.storage_service.create_repository_memory_bank(repo_name)
         
         # Return memory bank info
         return {
@@ -130,7 +139,7 @@ class RepositoryService:
             name = os.path.basename(repo_path)
             
             # Get remote URL if available
-            remote_url = ""
+            remote_url = None
             try:
                 result = subprocess.run(
                     ["git", "config", "--get", "remote.origin.url"],
@@ -141,11 +150,12 @@ class RepositoryService:
                 )
                 if result.returncode == 0:
                     remote_url = result.stdout.strip()
-            except Exception:
-                pass
+                    logger.info(f"Detected remote URL: {remote_url}")
+            except Exception as e:
+                logger.warning(f"Error getting remote URL: {str(e)}")
             
             # Get current branch
-            branch = ""
+            branch = None
             try:
                 result = subprocess.run(
                     ["git", "branch", "--show-current"],
@@ -156,8 +166,19 @@ class RepositoryService:
                 )
                 if result.returncode == 0:
                     branch = result.stdout.strip()
-            except Exception:
-                pass
+                    if not branch:  # Try fallback method
+                        result = subprocess.run(
+                            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                            cwd=repo_path,
+                            capture_output=True,
+                            text=True,
+                            check=False
+                        )
+                        if result.returncode == 0:
+                            branch = result.stdout.strip()
+                    logger.info(f"Detected branch: {branch}")
+            except Exception as e:
+                logger.warning(f"Error getting branch: {str(e)}")
             
             return {
                 "name": name,
@@ -166,6 +187,7 @@ class RepositoryService:
                 "branch": branch
             }
         except Exception as e:
+            logger.error(f"Error getting repository info: {str(e)}")
             return {
                 "name": os.path.basename(repo_path),
                 "path": repo_path,

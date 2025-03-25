@@ -7,11 +7,15 @@ searching, and retrieving context.
 
 import os
 import re
+import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 
 from .storage_service import StorageService
 from .repository_service import RepositoryService
+
+logger = logging.getLogger(__name__)
 
 class ContextService:
     """Service for handling context operations in the Memory Bank system."""
@@ -77,9 +81,9 @@ class ContextService:
                     "metadata": metadata,
                     "path": await self.storage_service.get_project_path(name)
                 })
-            except Exception:
+            except Exception as e:
                 # Skip projects with errors
-                pass
+                logger.error(f"Error getting project memory bank {name}: {str(e)}")
         
         # Get repository memory banks
         repositories = []
@@ -92,6 +96,9 @@ class ContextService:
                     "name": repo_name,
                     "repo_path": record["path"],
                     "project": record.get("project"),
+                    "remote_url": record.get("remote_url"),
+                    "branch": record.get("branch"),
+                    "last_accessed": record.get("last_accessed"),
                     "path": repo_mb_path
                 })
         
@@ -161,6 +168,7 @@ class ContextService:
                     "metadata": metadata
                 }
             except Exception as e:
+                logger.error(f"Error setting project memory bank for {project_name}: {str(e)}")
                 raise ValueError(f"Error setting project memory bank: {str(e)}")
         
         elif type == "repository":
@@ -171,17 +179,21 @@ class ContextService:
             # Detect repository
             repo_info = await self.repository_service.detect_repository(repository_path)
             if not repo_info:
+                logger.error(f"No Git repository found at or above {repository_path}")
                 raise ValueError(f"No Git repository found at or above {repository_path}.")
             
             repo_name = repo_info["name"]
+            logger.info(f"Detected repository: {repo_name} at {repo_info['path']}")
             
             # Get repository memory bank path
             repo_mb_path = await self.storage_service.get_repository_memory_bank_path(repo_name)
             if not repo_mb_path:
                 # Initialize repository memory bank
+                logger.info(f"Initializing memory bank for repository {repo_name}")
                 await self.repository_service.initialize_repository_memory_bank(repo_info["path"])
                 repo_mb_path = await self.storage_service.get_repository_memory_bank_path(repo_name)
                 if not repo_mb_path:
+                    logger.error(f"Failed to initialize memory bank for repository {repo_name}")
                     raise ValueError(f"Failed to initialize memory bank for repository {repo_name}.")
             
             # Get associated project
@@ -195,6 +207,8 @@ class ContextService:
                 "repo_info": repo_info,
                 "project": project_name
             }
+            
+            logger.info(f"Set current memory bank to repository: {repo_name}, path: {repo_mb_path}")
         
         else:
             raise ValueError(f"Unknown memory bank type: {type}. Use 'global', 'project', or 'repository'.")
@@ -239,8 +253,15 @@ class ContextService:
         
         # If repository is specified, register it
         if repository_path:
-            repo_name = os.path.basename(repository_path)
-            await self.storage_service.register_repository(repository_path, repo_name, name)
+            repo_info = await self.repository_service.detect_repository(repository_path)
+            repo_name = repo_info["name"]
+            await self.storage_service.register_repository(
+                repository_path, 
+                repo_name, 
+                name,
+                repo_info.get("remote_url"),
+                repo_info.get("branch")
+            )
         
         # Set this as current memory bank
         self.current_memory_bank = {
@@ -271,7 +292,13 @@ class ContextService:
         
         # Get context file
         file_name = self.CONTEXT_FILES[context_type]
-        return await self.storage_service.get_context_file(memory_bank_path, file_name)
+        try:
+            content = await self.storage_service.get_context_file(memory_bank_path, file_name)
+            logger.info(f"Successfully retrieved context file {file_name} from {memory_bank_path}")
+            return content
+        except Exception as e:
+            logger.error(f"Error retrieving context {context_type}: {str(e)}")
+            raise
     
     async def update_context(self, context_type: str, content: str) -> Dict[str, Any]:
         """Update a specific context file in the current memory bank.
@@ -291,7 +318,21 @@ class ContextService:
         
         # Update context file
         file_name = self.CONTEXT_FILES[context_type]
-        await self.storage_service.update_context_file(memory_bank_path, file_name, content)
+        try:
+            await self.storage_service.update_context_file(memory_bank_path, file_name, content)
+            logger.info(f"Successfully updated context file {file_name} in {memory_bank_path}")
+            
+            # Wait briefly to ensure file operations complete
+            await asyncio.sleep(0.1)
+            
+            # Verify the update
+            read_content = await self.storage_service.get_context_file(memory_bank_path, file_name)
+            if read_content != content:
+                logger.error(f"File verification failed for {context_type} - content mismatch")
+                raise IOError(f"File verification failed for {context_type} - content mismatch")
+        except Exception as e:
+            logger.error(f"Error updating context {context_type}: {str(e)}")
+            raise
         
         return memory_bank
     
@@ -324,9 +365,13 @@ class ContextService:
                     ]
                     if matching_lines:
                         results[context_type] = matching_lines
-            except Exception:
+                        logger.info(f"Found {len(matching_lines)} matches in {context_type} for '{query}'")
+            except Exception as e:
                 # Skip files with errors
-                pass
+                logger.error(f"Error searching context {context_type}: {str(e)}")
+        
+        if not results:
+            logger.info(f"No results found for query: {query} in {memory_bank['type']} memory bank")
         
         return results
     
@@ -348,9 +393,33 @@ class ContextService:
         memory_bank_path = memory_bank["path"]
         
         # Update all specified context files
+        success = True
         for context_type, content in updates.items():
-            file_name = self.CONTEXT_FILES[context_type]
-            await self.storage_service.update_context_file(memory_bank_path, file_name, content)
+            try:
+                file_name = self.CONTEXT_FILES[context_type]
+                await self.storage_service.update_context_file(memory_bank_path, file_name, content)
+                logger.info(f"Successfully updated context file {file_name} in {memory_bank_path}")
+            except Exception as e:
+                logger.error(f"Error updating context {context_type}: {str(e)}")
+                success = False
+        
+        # Wait briefly to ensure file operations complete
+        await asyncio.sleep(0.1)
+        
+        # Verify the updates
+        for context_type, content in updates.items():
+            try:
+                file_name = self.CONTEXT_FILES[context_type]
+                read_content = await self.storage_service.get_context_file(memory_bank_path, file_name)
+                if read_content != content:
+                    logger.error(f"File verification failed for {context_type} - content mismatch")
+                    success = False
+            except Exception as e:
+                logger.error(f"Error verifying context {context_type}: {str(e)}")
+                success = False
+        
+        if not success:
+            raise IOError("Failed to update all context files. Check logs for details.")
         
         return memory_bank
     
@@ -485,6 +554,7 @@ class ContextService:
                     }
             except Exception as e:
                 # Skip files with errors
+                logger.error(f"Error pruning context {context_type}: {str(e)}")
                 result[context_type] = {"error": str(e)}
         
         return result
@@ -507,8 +577,9 @@ class ContextService:
                     file_name
                 )
                 result[context_type] = content
-            except Exception:
+            except Exception as e:
                 # Skip files with errors
+                logger.error(f"Error retrieving context {context_type}: {str(e)}")
                 result[context_type] = f"Error retrieving {context_type}"
         
         return result

@@ -329,11 +329,19 @@ Branch: {repo_info.get('branch', '')}
                     if isinstance(result, list) and result and 'content' in result[0]:
                         prompt_content = result[0]['content']
                 
+                # Get all context from the selected memory bank
+                contexts = await get_all_context(self.context_service)
+                
                 # Add special tag for Claude to recognize and format
                 result_text = f"<claude_display>\nThe memory bank was started successfully with the \"{prompt_name}\" prompt.\n</claude_display>\n\n"
                 
                 # Add technical details
                 result_text += f"Technical details:\n{tech_details}\n\n"
+                
+                # Add memory bank content
+                result_text += "## Memory Bank Content\n\n"
+                for context_type, content in contexts.items():
+                    result_text += f"### {context_type.replace('_', ' ').title()}\n\n{content}\n\n"
                 
                 # Add the actual prompt content directly in the response
                 if prompt_content:

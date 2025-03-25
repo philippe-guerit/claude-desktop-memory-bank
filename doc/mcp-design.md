@@ -51,7 +51,7 @@ The system supports three types of memory banks:
 
 ## Core Components
 
-The Claude Desktop Memory Bank MCP server implements these core MCP capabilities:
+The Claude Desktop Memory Bank MCP server implements these core MCP capabilities through a simplified architecture with just 4 key tools.
 
 ### 1. Resources
 
@@ -61,6 +61,7 @@ Resources in MCP are file-like data that can be read by clients. Our Memory Bank
 - **Technical Context Resource**: Offers technical context about the project
 - **Active Context Resource**: Delivers the current working context
 - **Progress Resource**: Shows what's been done and what's still to be completed
+- **All Context Resource**: Provides a comprehensive view of all context
 
 ```mermaid
 flowchart LR
@@ -72,17 +73,17 @@ flowchart LR
     StorageSvc --> TC[Technical Context]
     StorageSvc --> AC[Active Context]
     StorageSvc --> P[Progress]
+    StorageSvc --> All[All Context]
 ```
 
-### 2. Tools
+### 2. Simplified Tool Architecture
 
-MCP Tools are functions that can be called by the LLM (with user approval). Our server provides:
+The Memory Bank system uses a streamlined set of just 4 MCP tools that provide all necessary functionality with reduced cognitive load:
 
-- **Memory Bank Management Tools**: Select, initialize, and list available memory banks
-- **Update Context Tool**: Allows Claude to update the memory bank with new information
-- **Search Context Tool**: Enables searching through past context
-- **Project Management Tools**: Create and manage project-specific memory banks
-- **Repository Detection Tool**: Detect and initialize repository memory banks
+- **memory-bank-start**: Unified tool for initialization, repository detection, project creation, and prompt loading
+- **select-memory-bank**: For selecting specific memory banks
+- **bulk-update-context**: For updating multiple context files in one operation
+- **list-memory-banks**: For diagnostics and reference
 
 ```mermaid
 flowchart LR
@@ -90,11 +91,10 @@ flowchart LR
     FastMCP --> Tools[Tool Handlers]
     Tools --> Core[Core Business Logic]
     Core --> ContextSvc[Context Service]
-    ContextSvc --> MBM[Memory Bank Management]
-    ContextSvc --> Update[Update Context]
-    ContextSvc --> Search[Search Context]
-    ContextSvc --> Project[Project Management]
-    ContextSvc --> Repo[Repository Tools]
+    ContextSvc --> MBS[memory-bank-start]
+    ContextSvc --> SMB[select-memory-bank]
+    ContextSvc --> BUC[bulk-update-context]
+    ContextSvc --> LMB[list-memory-banks]
 ```
 
 ### 3. Prompts

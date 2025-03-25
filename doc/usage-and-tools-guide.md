@@ -6,6 +6,8 @@ This comprehensive guide explains how to use the Claude Desktop Memory Bank syst
 
 The Claude Desktop Memory Bank is a Model Context Protocol (MCP) server that enables Claude to maintain context and memory across sessions. It functions as Claude's auxiliary memory, automatically storing and organizing important information without requiring user management.
 
+> **Note**: We've simplified the Memory Bank architecture to use just 4 core tools. If you're familiar with the previous version, please read the [Migration Guide](migration-guide.md) to understand the changes and benefits.
+
 The system supports three types of memory banks:
 1. **Global Memory Bank**: For general conversations not tied to specific projects
 2. **Project Memory Banks**: Linked to Claude Desktop projects
@@ -159,15 +161,15 @@ Claude automatically:
 
 ## MCP Tools Reference
 
-The Memory Bank system provides various MCP tools that enable Claude to manage memory banks and context information. While these tools typically work automatically in the background, understanding them can help troubleshoot issues or implement advanced workflows.
+The Memory Bank system provides a streamlined set of just 4 MCP tools that enable Claude to manage memory banks and context information. This simplified architecture reduces cognitive load while maintaining all functionality. While these tools typically work automatically in the background, understanding them can help troubleshoot issues or implement advanced workflows.
 
 ### memory-bank-start
 
-Initializes the memory bank and loads a custom prompt.
+Unified tool for memory bank initialization, repository detection, project creation, and custom prompt loading.
 
 #### Description
 
-This tool orchestrates the initialization process for memory banks. It detects repositories, initializes memory banks when needed, selects the appropriate memory bank based on the detection, and loads a specified prompt or the default custom instructions.
+This enhanced tool orchestrates the entire initialization process for memory banks. It handles repository detection, project creation, memory bank initialization, and prompt loading in a single unified operation. It automatically selects the appropriate memory bank based on the provided parameters and available context.
 
 #### Parameters
 
@@ -175,10 +177,33 @@ This tool orchestrates the initialization process for memory banks. It detects r
 - **auto_detect** (optional): Whether to automatically detect repositories. Default: `true`
 - **current_path** (optional): Path to check for repository. Default: Current working directory
 - **force_type** (optional): Force a specific memory bank type (`global`, `project`, or `repository`) overriding auto-detection.
+- **project_name** (optional): Name for creating a new project
+- **project_description** (optional): Description for creating a new project
 
 #### Returns
 
-A confirmation message about the initialization with details about the memory bank that was selected.
+A detailed response containing:
+- Confirmation message about initialization
+- Technical details about actions performed
+- Complete memory bank content
+- Applied custom instructions
+
+#### Example Usage
+
+Creating a project and selecting its memory bank:
+```
+memory-bank-start(project_name="MyProject", project_description="A web application for inventory tracking")
+```
+
+Initializing a repository memory bank:
+```
+memory-bank-start(current_path="/path/to/repo")
+```
+
+Creating a project associated with a repository:
+```
+memory-bank-start(current_path="/path/to/repo", project_name="RepoProject", project_description="Project for this repository")
+```
 
 ### select-memory-bank
 
@@ -198,98 +223,13 @@ This tool allows selecting a specific memory bank for the current conversation. 
 
 Information about the selected memory bank.
 
-### create-project
-
-Creates a new project in the memory bank.
-
-#### Description
-
-This tool creates a new project memory bank and optionally associates it with a Git repository.
-
-#### Parameters
-
-- **name**: The name of the project to create
-- **description**: A brief description of the project
-- **repository_path** (optional): Path to a Git repository to associate with the project
-
-#### Returns
-
-A confirmation message about the created project.
-
-### list-memory-banks
-
-Lists all available memory banks.
-
-#### Description
-
-This tool provides information about all available memory banks, including the current memory bank, global memory bank, project memory banks, and repository memory banks.
-
-#### Parameters
-
-None
-
-#### Returns
-
-A formatted list of all available memory banks with their details.
-
-### detect-repository
-
-Detects if a path is within a Git repository.
-
-#### Description
-
-This tool checks if a given path is within a Git repository and provides information about the repository if found.
-
-#### Parameters
-
-- **path**: The path to check
-
-#### Returns
-
-Information about the detected repository, or a message indicating no repository was found.
-
-### initialize-repository-memory-bank
-
-Initializes a memory bank within a Git repository.
-
-#### Description
-
-This tool creates a new memory bank within a Git repository and optionally associates it with a Claude Desktop project.
-
-#### Parameters
-
-- **repository_path**: Path to the Git repository
-- **claude_project** (optional): Claude Desktop project to associate with this repository
-
-#### Returns
-
-Information about the initialized memory bank.
-
-### update-context
-
-Updates a context file in the current memory bank.
-
-#### Description
-
-This tool allows updating a specific context file (like project brief, technical context, etc.) in the current memory bank.
-
-#### Parameters
-
-- **context_type**: The type of context to update (`project_brief`, `product_context`, `system_patterns`, `tech_context`, `active_context`, or `progress`)
-- **content**: The new content for the context file
-
-#### Returns
-
-A confirmation message about the updated context.
-
-
 ### bulk-update-context
 
 Updates multiple context files in one operation.
 
 #### Description
 
-This tool allows updating multiple context files at once in the current memory bank.
+This tool allows updating multiple context files at once in the current memory bank. It is the primary mechanism for maintaining context across conversations.
 
 #### Parameters
 
@@ -299,37 +239,30 @@ This tool allows updating multiple context files at once in the current memory b
 
 A confirmation message about the bulk update.
 
-### auto-summarize-context
+#### Example Usage
 
-Automatically extracts and updates context from conversation.
+```
+bulk-update-context(updates={
+    "project_brief": "Updated project brief content...",
+    "tech_context": "Updated technology context..."
+})
+```
 
-#### Description
+### list-memory-banks
 
-This tool analyzes conversation text to extract relevant information and automatically update appropriate context files.
-
-#### Parameters
-
-- **conversation_text**: The text of the conversation to analyze
-
-#### Returns
-
-Information about what context files were updated and with what information.
-
-### prune-context
-
-Removes outdated information from context files.
+Lists all available memory banks.
 
 #### Description
 
-This tool removes outdated information from context files based on a configurable age threshold.
+This tool provides information about all available memory banks, including the current memory bank, global memory bank, project memory banks, and repository memory banks. It's useful for diagnostic purposes and for understanding the available context sources.
 
 #### Parameters
 
-- **max_age_days** (optional): Maximum age in days of content to keep. Default: 90
+None
 
 #### Returns
 
-Information about what was pruned from which context files.
+A formatted list of all available memory banks with their details.
 
 ## Workflow Examples
 

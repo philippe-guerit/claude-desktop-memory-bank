@@ -23,6 +23,13 @@
    ACTION: CALL bulk-update-context WITH {updates object}
    ```
 
+3. **COMMAND: INITIALIZE MEMORY BANK WHEN NEEDED**
+   ```
+   WHEN: User mentions a project or repository that needs initialization
+   ACTION: CALL memory-bank-start WITH appropriate parameters
+   EXAMPLE: memory-bank-start(current_path="/path/to/repo", project_name="ProjectName", project_description="Description")
+   ```
+
 ## IMMEDIATE INITIALIZATION ACTIONS
 
 When loading these custom instructions, immediately respond with:

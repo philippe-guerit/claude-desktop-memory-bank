@@ -15,6 +15,33 @@ The Memory Bank system uses a layered architecture with clear separation of conc
 └─────────────────┘      └─────────────────┘      └─────────────────┘
 ```
 
+### Simplified Tool Architecture
+
+The system has been streamlined to use exactly 4 core tools:
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                   Memory Bank Core Tools                   │
+├───────────────────┬───────────────────┬───────────────────┤
+│                   │                   │                   │
+│  memory-bank-start│ select-memory-bank│ bulk-update-context│
+│                   │                   │                   │
+└───────────────────┴───────────────────┴───────────────────┘
+                              │
+                   ┌───────────────────┐
+                   │                   │
+                   │ list-memory-banks │
+                   │                   │
+                   └───────────────────┘
+```
+
+The benefits of this simplified architecture include:
+- Reduced cognitive load for users
+- Fewer API calls for common operations 
+- More intuitive organization of functionality
+- Minimized risk of race conditions
+- Improved maintainability with fewer components
+
 ## Prerequisites
 
 Before starting the implementation, ensure you have:
@@ -104,9 +131,28 @@ async def start_memory_bank(
     prompt_name: Optional[str] = None,
     auto_detect: bool = True,
     current_path: Optional[str] = None,
-    force_type: Optional[str] = None
+    force_type: Optional[str] = None,
+    project_name: Optional[str] = None,
+    project_description: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Core business logic for starting a memory bank."""
+    """Core business logic for starting a memory bank.
+    
+    This enhanced unified function handles:
+    - Repository detection
+    - Project creation
+    - Repository initialization
+    - Memory bank selection
+    - Automatic pruning
+    
+    Args:
+        context_service: The context service instance
+        prompt_name: Optional name of the prompt to load
+        auto_detect: Whether to automatically detect repositories
+        current_path: Path to check for repository
+        force_type: Force a specific memory bank type
+        project_name: Optional name for creating a new project
+        project_description: Optional description for creating a new project
+    """
     # Initialize tracking variables
     actions_taken = []
     selected_memory_bank = None
@@ -123,22 +169,77 @@ async def start_memory_bank(
         if detected_repo:
             actions_taken.append(f"Detected repository: {detected_repo.get('name', '')}")
     
-    # Step 2: Initialize repository memory bank if needed
-    if detected_repo and not force_type:
+    # Step 2: Handle project creation if requested
+    project_created = False
+    if project_name and project_description:
+        # Skip project creation when in a repository with existing memory bank
+        # unless explicitly forced to create a project
+        should_create_project = True
+        
+        if detected_repo and not force_type:
+            # Check if memory bank exists for this repository
+            memory_bank_path = detected_repo.get('memory_bank_path')
+            has_memory_bank = memory_bank_path and os.path.exists(memory_bank_path)
+            
+            if has_memory_bank:
+                # Skip project creation if in a repository with existing memory bank
+                should_create_project = False
+                actions_taken.append(f"Skipped project creation - using existing repository memory bank")
+        
+        if should_create_project:
+            try:
+                # If we detected a repository and no force_type is set, associate with repository
+                repo_path = detected_repo.get('path') if detected_repo and not force_type else None
+                
+                # Create the project
+                project_info = await create_project(
+                    context_service,
+                    project_name,
+                    project_description,
+                    repo_path
+                )
+                
+                actions_taken.append(f"Created project: {project_name}")
+                if repo_path:
+                    actions_taken.append(f"Associated project with repository: {detected_repo.get('name', '')}")
+                    
+                # Set selected memory bank to the new project
+                if not force_type:
+                    selected_memory_bank = await select_memory_bank(
+                        context_service,
+                        type="project",
+                        project_name=project_name
+                    )
+                    actions_taken.append(f"Selected new project memory bank: {project_name}")
+                    project_created = True
+                    
+            except Exception as e:
+                error_msg = str(e)
+                actions_taken.append(f"Failed to create project: {error_msg}")
+    
+    # Step 3: Initialize repository memory bank if needed and no project was created
+    if detected_repo and not force_type and not selected_memory_bank:
         # Check if memory bank exists for this repository
         memory_bank_path = detected_repo.get('memory_bank_path')
         if not memory_bank_path or not os.path.exists(memory_bank_path):
-            repo_memory_bank = await initialize_repository_memory_bank(
+            # Initialize and select in one step
+            selected_memory_bank = await initialize_repository_memory_bank(
                 context_service,
                 detected_repo.get('path', '')
             )
             actions_taken.append(f"Initialized repository memory bank for: {detected_repo.get('name', '')}")
-            selected_memory_bank = repo_memory_bank
         else:
+            # If memory bank exists, explicitly select it here
             actions_taken.append(f"Using existing repository memory bank: {detected_repo.get('name', '')}")
+            selected_memory_bank = await select_memory_bank(
+                context_service,
+                type="repository",
+                repository_path=detected_repo.get('path', '')
+            )
+            actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
     
-    # Step 3: Select appropriate memory bank based on detection or force_type
-    if force_type:
+    # Step 4: Handle forced memory bank type if specified
+    if force_type and not selected_memory_bank:
         if force_type == "global":
             selected_memory_bank = await select_memory_bank(context_service)
             actions_taken.append("Forced selection of global memory bank")
@@ -160,20 +261,45 @@ async def start_memory_bank(
             actions_taken.append(f"Forced selection of repository memory bank: {repo_path}")
         else:
             actions_taken.append(f"Warning: Invalid force_type: {force_type}. Using default selection.")
-            
-    elif detected_repo and not selected_memory_bank:
-        # We detected a repo but didn't initialize a memory bank (it already existed)
-        selected_memory_bank = await select_memory_bank(
-            context_service,
-            type="repository",
-            repository_path=detected_repo.get('path', '')
-        )
-        actions_taken.append(f"Selected repository memory bank: {detected_repo.get('name', '')}")
     
     # If no memory bank was selected yet, get the current memory bank
     if not selected_memory_bank:
         selected_memory_bank = await context_service.get_current_memory_bank()
         actions_taken.append(f"Using current memory bank: {selected_memory_bank['type']}")
+    
+    # Run automatic pruning
+    try:
+        # Apply different age thresholds for different context types
+        pruning_results = {}
+        
+        # Core architectural decisions: 180 days
+        arch_results = await prune_context(context_service, 180)
+        for k, v in arch_results.items():
+            if k == "system_patterns":
+                pruning_results[k] = v
+        
+        # Technology choices: 90 days
+        tech_results = await prune_context(context_service, 90)
+        for k, v in tech_results.items():
+            if k == "tech_context":
+                pruning_results[k] = v
+        
+        # Progress updates: 30 days
+        progress_results = await prune_context(context_service, 30)
+        for k, v in progress_results.items():
+            if k == "progress" or k == "active_context":
+                pruning_results[k] = v
+        
+        # Log pruning results
+        pruned_total = sum([r.get("pruned_sections", 0) for r in pruning_results.values() if "error" not in r])
+        if pruned_total > 0:
+            actions_taken.append(f"Automatically pruned {pruned_total} outdated sections from context files")
+        else:
+            actions_taken.append("No outdated sections found during automatic pruning")
+            
+    except Exception as e:
+        error_msg = str(e)
+        actions_taken.append(f"Automatic pruning failed: {error_msg}")
     
     # Format result
     result = {
@@ -400,16 +526,8 @@ from typing import Dict, List, Optional, Any
 from ..core import (
     start_memory_bank,
     select_memory_bank,
-    list_memory_banks,
-    detect_repository,
-    initialize_repository_memory_bank,
-    create_project,
-    get_context,
-    update_context,
-    search_context,
+    list_memory_banks, 
     bulk_update_context,
-    auto_summarize_context,
-    prune_context,
     get_all_context,
     get_memory_bank_info
 )
@@ -423,7 +541,51 @@ class DirectAccess:
         """Initialize the direct access methods."""
         self.context_service = context_service
     
-    # Implement methods that map directly to core functions...
+    async def start_memory_bank(
+        self,
+        prompt_name: Optional[str] = None,
+        auto_detect: bool = True,
+        current_path: Optional[str] = None,
+        force_type: Optional[str] = None,
+        project_name: Optional[str] = None,
+        project_description: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Start the memory bank with unified approach."""
+        return await start_memory_bank(
+            self.context_service,
+            prompt_name=prompt_name,
+            auto_detect=auto_detect,
+            current_path=current_path,
+            force_type=force_type,
+            project_name=project_name,
+            project_description=project_description
+        )
+    
+    async def select_memory_bank(
+        self,
+        type: str = "global",
+        project_name: Optional[str] = None,
+        repository_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Select a memory bank."""
+        return await select_memory_bank(
+            self.context_service,
+            type=type,
+            project_name=project_name,
+            repository_path=repository_path
+        )
+    
+    async def list_memory_banks(self) -> Dict[str, Any]:
+        """List all available memory banks."""
+        return await list_memory_banks(self.context_service)
+    
+    async def bulk_update_context(self, updates: Dict[str, str]) -> Dict[str, Any]:
+        """Update multiple context files at once."""
+        return await bulk_update_context(self.context_service, updates)
+    
+    async def get_all_context(self) -> Dict[str, str]:
+        """Get all context files."""
+        return await get_all_context(self.context_service)
 ```
 
 ### fastmcp_integration.py
@@ -447,15 +609,7 @@ from ..core import (
     start_memory_bank,
     select_memory_bank,
     list_memory_banks,
-    detect_repository,
-    initialize_repository_memory_bank,
-    create_project,
-    get_context,
-    update_context,
-    search_context,
     bulk_update_context,
-    auto_summarize_context,
-    prune_context,
     get_all_context,
     get_memory_bank_info
 )
@@ -488,7 +642,45 @@ class FastMCPIntegration:
         self._register_tool_handlers()
         self._register_prompt_handlers()
     
-    # Implement methods for registering resources, tools, and prompts...
+    def _register_tool_handlers(self) -> None:
+        """Register tool handlers with the FastMCP server."""
+        
+        # Tool 1: memory-bank-start - unified initialization tool
+        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank with context-aware detection")
+        async def memory_bank_start_tool(
+            prompt_name: Optional[str] = None,
+            auto_detect: bool = True,
+            current_path: Optional[str] = None,
+            force_type: Optional[str] = None,
+            project_name: Optional[str] = None,
+            project_description: Optional[str] = None
+        ) -> str:
+            """Initialize the memory bank with context-aware detection."""
+            # Implementation...
+            
+        # Tool 2: select-memory-bank
+        @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
+        async def select_memory_bank_tool(
+            type: str = "global", 
+            project: Optional[str] = None, 
+            repository_path: Optional[str] = None
+        ) -> str:
+            """Select which memory bank to use for the conversation."""
+            # Implementation...
+            
+        # Tool 3: bulk-update-context
+        @self.server.tool(name="bulk-update-context", description="Update multiple context files in one operation")
+        async def bulk_update_context_tool(updates: Dict[str, str]) -> str:
+            """Update multiple context files in one operation."""
+            # Implementation...
+            
+        # Tool 4: list-memory-banks
+        @self.server.tool(name="list-memory-banks", description="List all available memory banks")
+        async def list_memory_banks_tool() -> str:
+            """List all available memory banks."""
+            # Implementation...
+    
+    # Implement methods for registering resources and prompts...
 ```
 
 ### memory_bank_server.py

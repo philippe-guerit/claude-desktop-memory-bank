@@ -89,11 +89,16 @@ This server implements the Model Context Protocol (MCP) to provide a standardize
 
 ### Key MCP Tools
 
-- **memory-bank-start**: Initialize memory banks and load custom prompts with a single tool call
-- **select-memory-bank**: Choose which memory bank to use for the conversation
-- **update-context**: Update context files in the current memory bank
+The Memory Bank system uses a simplified set of just 4 core tools:
 
-For complete documentation on all available tools, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
+- **memory-bank-start**: Unified tool to initialize memory banks, detect repositories, create projects, and load custom prompts
+- **select-memory-bank**: Choose which memory bank to use for the conversation
+- **bulk-update-context**: Update multiple context files in a single operation
+- **list-memory-banks**: List all available memory banks for diagnostics and reference
+
+The simplified architecture reduces cognitive load while maintaining all functionality through the unified memory-bank-start approach.
+
+For complete documentation on all tools, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
 
 ## License
 

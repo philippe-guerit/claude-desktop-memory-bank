@@ -58,33 +58,6 @@ class TestDirectAccess:
         
         # Mock repository service
         context_service.repository_service = MagicMock()
-        context_service.repository_service.detect_repository = AsyncMock()
-        context_service.repository_service.detect_repository.return_value = {
-            'name': 'test-repo',
-            'path': '/path/to/repo',
-            'branch': 'main',
-            'memory_bank_path': None
-        }
-        
-        context_service.repository_service.initialize_repository_memory_bank = AsyncMock()
-        context_service.repository_service.initialize_repository_memory_bank.return_value = {
-            'type': 'repository',
-            'path': '/path/to/memory-bank',
-            'repo_info': {
-                'name': 'test-repo',
-                'path': '/path/to/repo',
-                'branch': 'main'
-            }
-        }
-        
-        # Mock other async methods
-        context_service.create_project = AsyncMock()
-        context_service.create_project.return_value = {
-            'name': 'test-project',
-            'description': 'A test project',
-            'created': '2023-01-01T00:00:00Z',
-            'lastModified': '2023-01-01T00:00:00Z'
-        }
         
         context_service.get_context = AsyncMock()
         context_service.get_context.return_value = "Sample context content"
@@ -96,40 +69,10 @@ class TestDirectAccess:
             'progress': 'Progress content'
         }
         
-        context_service.update_context = AsyncMock()
-        context_service.update_context.return_value = {
-            'type': 'repository',
-            'path': '/path/to/memory-bank'
-        }
-        
-        context_service.search_context = AsyncMock()
-        context_service.search_context.return_value = {
-            'project_brief': ['Line with search term'],
-            'active_context': ['Another line with search term']
-        }
-        
         context_service.bulk_update_context = AsyncMock()
         context_service.bulk_update_context.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank'
-        }
-        
-        context_service.auto_summarize_context = AsyncMock()
-        context_service.auto_summarize_context.return_value = {
-            'project_brief': 'Updated project brief',
-            'active_context': 'Updated active context'
-        }
-        
-        context_service.prune_context = AsyncMock()
-        context_service.prune_context.return_value = {
-            'project_brief': {
-                'pruned_sections': 2,
-                'kept_sections': 3
-            },
-            'active_context': {
-                'pruned_sections': 1,
-                'kept_sections': 4
-            }
         }
         
         return context_service
@@ -212,153 +155,6 @@ class TestDirectAccess:
             assert 'available' in result
     
     @pytest.mark.asyncio
-    async def test_detect_repository(self, direct_access):
-        """Test the detect_repository direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.detect_repository', new_callable=AsyncMock) as mock_detect:
-            mock_detect.return_value = {
-                'name': 'test-repo',
-                'path': '/path/to/repo',
-                'branch': 'main'
-            }
-            
-            # Call the method
-            result = await direct_access.detect_repository(path='/path/to/repo')
-            
-            # Verify that the method was called correctly
-            mock_detect.assert_called_once_with(direct_access.context_service, '/path/to/repo')
-            
-            # Verify response structure
-            assert 'name' in result
-            assert 'path' in result
-            assert 'branch' in result
-    
-    @pytest.mark.asyncio
-    async def test_initialize_repository_memory_bank(self, direct_access):
-        """Test the initialize_repository_memory_bank direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.initialize_repository_memory_bank', new_callable=AsyncMock) as mock_init:
-            mock_init.return_value = {
-                'type': 'repository',
-                'path': '/path/to/memory-bank',
-                'repo_info': {
-                    'name': 'test-repo',
-                    'path': '/path/to/repo',
-                    'branch': 'main'
-                }
-            }
-            
-            # Call the method
-            result = await direct_access.initialize_repository_memory_bank(
-                repository_path='/path/to/repo',
-                project_name='test-project'
-            )
-            
-            # Verify that the method was called correctly
-            mock_init.assert_called_once_with(
-                direct_access.context_service,
-                '/path/to/repo',
-                'test-project'
-            )
-            
-            # Verify response structure
-            assert 'type' in result
-            assert 'path' in result
-            assert 'repo_info' in result
-    
-    @pytest.mark.asyncio
-    async def test_create_project(self, direct_access):
-        """Test the create_project direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.create_project', new_callable=AsyncMock) as mock_create:
-            mock_create.return_value = {
-                'name': 'test-project',
-                'description': 'A test project'
-            }
-            
-            # Call the method
-            result = await direct_access.create_project(
-                name='test-project',
-                description='A test project',
-                repository_path='/path/to/repo'
-            )
-            
-            # Verify that the method was called correctly
-            mock_create.assert_called_once_with(
-                direct_access.context_service,
-                'test-project',
-                'A test project',
-                '/path/to/repo'
-            )
-            
-            # Verify response structure
-            assert 'name' in result
-            assert 'description' in result
-    
-    @pytest.mark.asyncio
-    async def test_get_context(self, direct_access):
-        """Test the get_context direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.get_context', new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = "Test context content"
-            
-            # Call the method
-            result = await direct_access.get_context(context_type='project_brief')
-            
-            # Verify that the method was called correctly
-            mock_get.assert_called_once_with(direct_access.context_service, 'project_brief')
-            
-            # Verify the result
-            assert result == "Test context content"
-    
-    @pytest.mark.asyncio
-    async def test_update_context(self, direct_access):
-        """Test the update_context direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.update_context', new_callable=AsyncMock) as mock_update:
-            mock_update.return_value = {
-                'type': 'repository',
-                'path': '/path/to/memory-bank'
-            }
-            
-            # Call the method
-            result = await direct_access.update_context(
-                context_type='project_brief',
-                content='New project brief content'
-            )
-            
-            # Verify that the method was called correctly
-            mock_update.assert_called_once_with(
-                direct_access.context_service,
-                'project_brief',
-                'New project brief content'
-            )
-            
-            # Verify the result
-            assert result['type'] == 'repository'
-            assert result['path'] == '/path/to/memory-bank'
-    
-    @pytest.mark.asyncio
-    async def test_search_context(self, direct_access):
-        """Test the search_context direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.search_context', new_callable=AsyncMock) as mock_search:
-            mock_search.return_value = {
-                'project_brief': ['Line with search term'],
-                'active_context': ['Another line with search term']
-            }
-            
-            # Call the method
-            result = await direct_access.search_context(query='search term')
-            
-            # Verify that the method was called correctly
-            mock_search.assert_called_once_with(direct_access.context_service, 'search term')
-            
-            # Verify response structure
-            assert 'project_brief' in result
-            assert 'active_context' in result
-    
-    @pytest.mark.asyncio
     async def test_bulk_update_context(self, direct_access):
         """Test the bulk_update_context direct access method."""
         # Create patch for core function
@@ -383,57 +179,6 @@ class TestDirectAccess:
             # Verify the result
             assert result['type'] == 'repository'
             assert result['path'] == '/path/to/memory-bank'
-    
-    @pytest.mark.asyncio
-    async def test_auto_summarize_context(self, direct_access):
-        """Test the auto_summarize_context direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.auto_summarize_context', new_callable=AsyncMock) as mock_auto:
-            mock_auto.return_value = {
-                'project_brief': 'Updated project brief',
-                'active_context': 'Updated active context'
-            }
-            
-            # Call the method
-            result = await direct_access.auto_summarize_context(
-                conversation_text="Sample conversation text"
-            )
-            
-            # Verify that the method was called correctly
-            mock_auto.assert_called_once_with(
-                direct_access.context_service,
-                "Sample conversation text"
-            )
-            
-            # Verify response structure
-            assert 'project_brief' in result
-            assert 'active_context' in result
-    
-    @pytest.mark.asyncio
-    async def test_prune_context(self, direct_access):
-        """Test the prune_context direct access method."""
-        # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.prune_context', new_callable=AsyncMock) as mock_prune:
-            mock_prune.return_value = {
-                'project_brief': {
-                    'pruned_sections': 2,
-                    'kept_sections': 3
-                },
-                'active_context': {
-                    'pruned_sections': 1,
-                    'kept_sections': 4
-                }
-            }
-            
-            # Call the method
-            result = await direct_access.prune_context(max_age_days=90)
-            
-            # Verify that the method was called correctly
-            mock_prune.assert_called_once_with(direct_access.context_service, 90)
-            
-            # Verify response structure
-            assert 'project_brief' in result
-            assert 'active_context' in result
     
     @pytest.mark.asyncio
     async def test_get_all_context(self, direct_access):

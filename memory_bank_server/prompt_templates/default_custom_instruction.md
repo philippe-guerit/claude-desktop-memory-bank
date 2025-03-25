@@ -5,7 +5,7 @@
 0. **🧪 TEST COMMAND: UPDATE AFTER EACH RESPONSE**
    ```
    WHEN: After delivering ANY response to the user
-   ACTION: CALL update-context WITH context_type="active_context" and debug content
+   ACTION: CALL bulk-update-context WITH {"active_context": debug content}
    FORMAT: Add line "## Debug\n\n- Response sent at (current date) - TEST DIRECTIVE WORKING"
    NOTE: This is a temporary test directive to verify command processing
    ```
@@ -13,8 +13,8 @@
 1. **COMMAND: PERFORM CONTEXT MONITORING**
    ```
    WHEN: You detect architectural decisions, technical choices, or project updates
-   ACTION: CALL update-context WITH relevant_context_type
-   EXAMPLE: update-context(context_type="system_patterns", content="...")
+   ACTION: CALL bulk-update-context WITH single context update
+   EXAMPLE: bulk-update-context(updates={"system_patterns": "..."})
    ```
 
 2. **COMMAND: EXECUTE AUTO-UPDATE AT CONVERSATION END**
@@ -101,8 +101,8 @@ COMMAND: When identified meaningful information:
 1. **Collect & Organize**: Track important points throughout conversation
 2. **Summarize**: Condense into concise updates before storing
 3. **Call Appropriate Tool**:
-   - For a single context type: `update-context`
-   - For multiple context types: `bulk-update-context`
+   - For a single context type: `bulk-update-context` with a single key-value pair
+   - For multiple context types: `bulk-update-context` with multiple key-value pairs
 4. **Format Properly**: Use Markdown with clear sections and dates
 5. **Add to Existing**: Append or modify rather than replacing entire sections
 
@@ -110,18 +110,18 @@ COMMAND: When identified meaningful information:
 
 COMMAND: Explicitly look for these triggers and EXECUTE the associated action:
 
-- **Architecture/Design Decisions**: → EXECUTE update-context WITH system_patterns
-- **Technology Choices**: → EXECUTE update-context WITH tech_context
-- **Completed Tasks**: → EXECUTE update-context WITH progress
-- **Current Focus Shifts**: → EXECUTE update-context WITH active_context
-- **New Requirements**: → EXECUTE update-context WITH project_brief
-- **User Experience Changes**: → EXECUTE update-context WITH product_context
+- **Architecture/Design Decisions**: → EXECUTE bulk-update-context WITH {"system_patterns": content}
+- **Technology Choices**: → EXECUTE bulk-update-context WITH {"tech_context": content}
+- **Completed Tasks**: → EXECUTE bulk-update-context WITH {"progress": content}
+- **Current Focus Shifts**: → EXECUTE bulk-update-context WITH {"active_context": content}
+- **New Requirements**: → EXECUTE bulk-update-context WITH {"project_brief": content}
+- **User Experience Changes**: → EXECUTE bulk-update-context WITH {"product_context": content}
 
 ## EXAMPLE DECISION PROCESS
 
 1. User says: "We decided to use MongoDB because it works better with unstructured data"
 2. **Decision**: Important technical decision (persistence value: high)
-3. **ACTION**: EXECUTE update-context WITH tech_context AND system_patterns
+3. **ACTION**: EXECUTE bulk-update-context WITH {"tech_context": tech_content, "system_patterns": patterns_content}
 4. **Format**:
    ```
    ## Decisions
@@ -181,9 +181,7 @@ After processing these instructions, EXECUTE:
 
 ### Code Changes
 When code is modified or reviewed, EXECUTE:
-- CALL update-context WITH system_patterns to capture key design patterns
-- CALL update-context WITH tech_context to document dependencies
-- CALL update-context WITH progress to update status
+- CALL bulk-update-context WITH updates for system patterns, tech context, and progress
 
 ### Project Pivots
 When significant direction changes occur, EXECUTE:
@@ -193,7 +191,7 @@ When significant direction changes occur, EXECUTE:
 
 ### Technical Debates
 When alternatives are discussed, EXECUTE:
-- CALL update-context WITH system_patterns to capture all options considered
+- CALL bulk-update-context WITH {"system_patterns": content}
 - Document final decision and rationale
 - Note constraints that influenced decision
 

@@ -162,22 +162,6 @@ class DirectAccess:
         """
         return await get_context(self.context_service, context_type)
     
-    async def update_context(self, context_type: str, content: str) -> Dict[str, Any]:
-        """Update a context file.
-        
-        Args:
-            context_type: Type of context
-            content: New content
-            
-        Returns:
-            Dictionary with memory bank information
-        """
-        return await update_context(
-            self.context_service,
-            context_type,
-            content
-        )
-    
 
     async def bulk_update_context(self, updates: Dict[str, str]) -> Dict[str, Any]:
         """Update multiple context files at once.

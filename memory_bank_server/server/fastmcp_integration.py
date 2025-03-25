@@ -553,62 +553,7 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error initializing repository memory bank: {str(e)}")
                 return f"Error initializing repository memory bank: {str(e)}"
         
-        # Update context tool
-        @self.server.tool(name="update-context", description="Update a context file in the current memory bank")
-        async def update_context_tool(context_type: str, content: str) -> str:
-            """Update a context file in the current memory bank."""
-            try:
-                logger.info(f"Updating context: type={context_type}")
-                
-                # Call the core business logic
-                try:
-                    memory_bank = await update_context(
-                        self.context_service,
-                        context_type,
-                        content
-                    )
-                    
-                    # Wait for a moment to ensure file operations complete
-                    await asyncio.sleep(0.1)
-                    
-                    # Verify that the file was actually updated
-                    try:
-                        # Get the file path
-                        file_name = self.context_service.CONTEXT_FILES[context_type]
-                        file_path = Path(memory_bank['path']) / file_name
-                        
-                        # Read back from file to verify it was written
-                        read_content = await self.context_service.get_context(context_type)
-                        
-                        # Check if content matches what we tried to write
-                        if read_content != content:
-                            logger.error(f"Verification failed for context update: content mismatch for {context_type}")
-                            return f"Error: Content verification failed for {context_type}. The file may not have been updated correctly."
-                        
-                        logger.info(f"Successfully verified context update for {context_type}")
-                    except Exception as e:
-                        logger.error(f"Error verifying context update: {str(e)}")
-                    
-                    
-                    result_text = f"Context '{context_type}' updated successfully in "
-                    result_text += f"{memory_bank['type']} memory bank."
-                    
-                    if memory_bank['type'] == 'repository':
-                        repo_info = memory_bank.get('repo_info', {})
-                        result_text += f"\nRepository: {repo_info.get('name', '')}"
-                        if memory_bank.get('project'):
-                            result_text += f"\nAssociated Project: {memory_bank['project']}"
-                    
-                    elif memory_bank['type'] == 'project':
-                        result_text += f"\nProject: {memory_bank.get('project', '')}"
-                    
-                    return result_text
-                except ValueError as e:
-                    return str(e)
-                
-            except Exception as e:
-                logger.error(f"Error updating context: {str(e)}")
-                return f"Error updating context: {str(e)}"
+
         
 
         # Bulk update context tool

@@ -17,7 +17,6 @@ from ..core import (
     create_project,
     get_context,
     update_context,
-    search_context,
     bulk_update_context,
     auto_summarize_context,
     prune_context,
@@ -180,17 +179,7 @@ class DirectAccess:
             content
         )
     
-    async def search_context(self, query: str) -> Dict[str, List[str]]:
-        """Search through context files.
-        
-        Args:
-            query: Search query
-            
-        Returns:
-            Dictionary with search results
-        """
-        return await search_context(self.context_service, query)
-    
+
     async def bulk_update_context(self, updates: Dict[str, str]) -> Dict[str, Any]:
         """Update multiple context files at once.
         

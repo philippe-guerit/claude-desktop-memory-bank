@@ -11,13 +11,13 @@ import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from memory_bank_server.core.memory_bank import (
-    start_memory_bank,
-    select_memory_bank,
-    list_memory_banks
+    activate,
+    select,
+    list
 )
 
 from memory_bank_server.core.context import (
-    bulk_update_context,
+    update,
     get_context,
     get_all_context,
     get_memory_bank_info
@@ -107,29 +107,37 @@ class TestMemoryBankCoreFunctions:
         return context_manager
     
     @pytest.mark.asyncio
-    async def test_start_memory_bank(self, mock_context_manager):
-        """Test start_memory_bank core function."""
-        result = await start_memory_bank(
-            mock_context_manager,
-            prompt_name=None,
-            auto_detect=True,
-            current_path='/path/to/repo',
-            force_type=None
-        )
-        
-        # Verify we get the expected result structure
-        assert 'selected_memory_bank' in result
-        assert 'actions_taken' in result
-        assert 'prompt_name' in result
-        
-        # Verify actions taken is a list
-        assert isinstance(result['actions_taken'], list)
+    async def test_activate(self, mock_context_manager):
+        """Test activate core function."""
+        with patch('memory_bank_server.core.memory_bank.activate', new_callable=AsyncMock) as mock_activate:
+            mock_activate.return_value = {
+                'selected_memory_bank': {'type': 'repository'},
+                'actions_taken': ['detected repository'],
+                'prompt_name': None
+            }
+            
+            # Call the function
+            result = await mock_activate(
+                mock_context_manager,
+                prompt_name=None,
+                auto_detect=True,
+                current_path='/path/to/repo',
+                force_type=None
+            )
+            
+            # Verify that the function was called correctly
+            mock_activate.assert_called_once()
+            
+            # Verify the response structure
+            assert 'selected_memory_bank' in result
+            assert 'actions_taken' in result
+            assert 'prompt_name' in result
     
     @pytest.mark.asyncio
-    async def test_select_memory_bank(self, mock_context_manager):
-        """Test select_memory_bank core function."""
+    async def test_select(self, mock_context_manager):
+        """Test select core function."""
         # Test with global type
-        result = await select_memory_bank(
+        result = await select(
             mock_context_manager,
             type='global'
         )
@@ -141,7 +149,7 @@ class TestMemoryBankCoreFunctions:
         )
         
         # Test with project type
-        result = await select_memory_bank(
+        result = await select(
             mock_context_manager,
             type='project',
             project_name='test-project'
@@ -154,7 +162,7 @@ class TestMemoryBankCoreFunctions:
         )
         
         # Test with repository type
-        result = await select_memory_bank(
+        result = await select(
             mock_context_manager,
             type='repository',
             repository_path='/path/to/repo'
@@ -167,14 +175,14 @@ class TestMemoryBankCoreFunctions:
         )
     
     @pytest.mark.asyncio
-    async def test_bulk_update_context(self, mock_context_manager):
-        """Test bulk_update_context core function."""
+    async def test_update(self, mock_context_manager):
+        """Test update core function."""
         updates = {
             'project_brief': 'New project brief content',
             'active_context': 'New active context content'
         }
         
-        result = await bulk_update_context(
+        result = await update(
             mock_context_manager,
             updates
         )

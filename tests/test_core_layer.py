@@ -10,11 +10,11 @@ import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from memory_bank_server.core import (
-    start_memory_bank,
-    select_memory_bank,
-    list_memory_banks,
+    activate,
+    select,
+    list,
+    update,
     get_context,
-    bulk_update_context,
     get_all_context,
     get_memory_bank_info
 )
@@ -82,10 +82,10 @@ class TestCoreLayer:
         return context_service
     
     @pytest.mark.asyncio
-    async def test_start_memory_bank(self, mock_context_service):
-        """Test start_memory_bank function."""
+    async def test_activate(self, mock_context_service):
+        """Test activate function."""
         # Call the function
-        result = await start_memory_bank(
+        result = await activate(
             mock_context_service,
             prompt_name='test-prompt',
             auto_detect=True,
@@ -100,10 +100,10 @@ class TestCoreLayer:
         assert result['prompt_name'] == 'test-prompt'
     
     @pytest.mark.asyncio
-    async def test_select_memory_bank(self, mock_context_service):
-        """Test select_memory_bank function."""
+    async def test_select(self, mock_context_service):
+        """Test select function."""
         # Call the function
-        result = await select_memory_bank(
+        result = await select(
             mock_context_service,
             type='repository',
             project_name=None,
@@ -122,10 +122,10 @@ class TestCoreLayer:
         )
     
     @pytest.mark.asyncio
-    async def test_list_memory_banks(self, mock_context_service):
-        """Test list_memory_banks function."""
+    async def test_list(self, mock_context_service):
+        """Test list function."""
         # Call the function
-        result = await list_memory_banks(mock_context_service)
+        result = await list(mock_context_service)
         
         # Verify the result
         assert 'current' in result
@@ -152,14 +152,14 @@ class TestCoreLayer:
         mock_context_service.get_context.assert_called_once_with('project_brief')
     
     @pytest.mark.asyncio
-    async def test_bulk_update_context(self, mock_context_service):
-        """Test bulk_update_context function."""
+    async def test_update(self, mock_context_service):
+        """Test update function."""
         # Call the function
         updates = {
             'project_brief': 'New project brief',
             'active_context': 'New active context'
         }
-        result = await bulk_update_context(mock_context_service, updates)
+        result = await update(mock_context_service, updates)
         
         # Verify the result
         assert result['type'] == 'global'

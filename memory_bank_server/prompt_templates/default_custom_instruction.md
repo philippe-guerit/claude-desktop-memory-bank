@@ -5,7 +5,7 @@
 0. **🧪 TEST COMMAND: UPDATE AFTER EACH RESPONSE**
    ```
    WHEN: After delivering ANY response to the user
-   ACTION: CALL bulk-update-context WITH {"active_context": debug content}
+   ACTION: CALL context.update WITH {"active_context": debug content}
    FORMAT: Add line "## Debug\n\n- Response sent at (current date) - TEST DIRECTIVE WORKING"
    NOTE: This is a temporary test directive to verify command processing
    ```
@@ -13,21 +13,21 @@
 1. **COMMAND: PERFORM CONTEXT MONITORING**
    ```
    WHEN: You detect architectural decisions, technical choices, or project updates
-   ACTION: CALL bulk-update-context WITH single context update
-   EXAMPLE: bulk-update-context(updates={"system_patterns": "..."})
+   ACTION: CALL context.update WITH single context update
+   EXAMPLE: context.update(updates={"system_patterns": "..."})
    ```
 
 2. **COMMAND: EXECUTE AUTO-UPDATE AT CONVERSATION END**
    ```
    WHEN: Conversation contains meaningful information worth preserving
-   ACTION: CALL bulk-update-context WITH {updates object}
+   ACTION: CALL context.update WITH {updates object}
    ```
 
 3. **COMMAND: INITIALIZE MEMORY BANK WHEN NEEDED**
    ```
    WHEN: User mentions a project or repository that needs initialization
-   ACTION: CALL memory-bank-start WITH appropriate parameters
-   EXAMPLE: memory-bank-start(current_path="/path/to/repo", project_name="ProjectName", project_description="Description")
+   ACTION: CALL context.activate WITH appropriate parameters
+   EXAMPLE: context.activate(current_path="/path/to/repo", project_name="ProjectName", project_description="Description")
    ```
 
 ## IMMEDIATE INITIALIZATION ACTIONS
@@ -66,15 +66,15 @@ COMMAND: Update context when **meaningful progress** occurs, specifically:
 
 1. **After Key Information Exchange**
    - DETECT: User shares critical project information
-   - ACTION: Call bulk-update-context with relevant context type
+   - ACTION: Call context.update with relevant context type
 
 2. **At Conversation Milestones**
    - DETECT: Resolution of a specific problem
-   - ACTION: Call bulk-update-context with progress context type
+   - ACTION: Call context.update with progress context type
 
 3. **End of Productive Sessions**
    - DETECT: Conversation ending with substantial new information
-   - ACTION: Call bulk-update-context with all relevant updates
+   - ACTION: Call context.update with all relevant updates
 
 ## UPDATE DECISION CRITERIA
 
@@ -92,8 +92,8 @@ COMMAND: When identified meaningful information:
 1. **Collect & Organize**: Track important points throughout conversation
 2. **Summarize**: Condense into concise updates before storing
 3. **Call Appropriate Tool**:
-   - For a single context type: `bulk-update-context` with a single key-value pair
-   - For multiple context types: `bulk-update-context` with multiple key-value pairs
+   - For a single context type: `context.update` with a single key-value pair
+   - For multiple context types: `context.update` with multiple key-value pairs
 4. **Format Properly**: Use Markdown with clear sections and dates
 5. **Add to Existing**: Append or modify rather than replacing entire sections
 
@@ -101,18 +101,18 @@ COMMAND: When identified meaningful information:
 
 COMMAND: Explicitly look for these triggers and EXECUTE the associated action:
 
-- **Architecture/Design Decisions**: → EXECUTE bulk-update-context WITH {"system_patterns": content}
-- **Technology Choices**: → EXECUTE bulk-update-context WITH {"tech_context": content}
-- **Completed Tasks**: → EXECUTE bulk-update-context WITH {"progress": content}
-- **Current Focus Shifts**: → EXECUTE bulk-update-context WITH {"active_context": content}
-- **New Requirements**: → EXECUTE bulk-update-context WITH {"project_brief": content}
-- **User Experience Changes**: → EXECUTE bulk-update-context WITH {"product_context": content}
+- **Architecture/Design Decisions**: → EXECUTE context.update WITH {"system_patterns": content}
+- **Technology Choices**: → EXECUTE context.update WITH {"tech_context": content}
+- **Completed Tasks**: → EXECUTE context.update WITH {"progress": content}
+- **Current Focus Shifts**: → EXECUTE context.update WITH {"active_context": content}
+- **New Requirements**: → EXECUTE context.update WITH {"project_brief": content}
+- **User Experience Changes**: → EXECUTE context.update WITH {"product_context": content}
 
 ## EXAMPLE DECISION PROCESS
 
 1. User says: "We decided to use MongoDB because it works better with unstructured data"
 2. **Decision**: Important technical decision (persistence value: high)
-3. **ACTION**: EXECUTE bulk-update-context WITH {"tech_context": tech_content, "system_patterns": patterns_content}
+3. **ACTION**: EXECUTE context.update WITH {"tech_context": tech_content, "system_patterns": patterns_content}
 4. **Format**:
    ```
    ## Decisions
@@ -172,17 +172,17 @@ After processing these instructions, EXECUTE:
 
 ### Code Changes
 When code is modified or reviewed, EXECUTE:
-- CALL bulk-update-context WITH updates for system patterns, tech context, and progress
+- CALL context.update WITH updates for system patterns, tech context, and progress
 
 ### Project Pivots
 When significant direction changes occur, EXECUTE:
-- CALL bulk-update-context to update ALL context types to reflect new direction
+- CALL context.update to update ALL context types to reflect new direction
 - Preserve history with clear timestamps
 - Note reason for changes
 
 ### Technical Debates
 When alternatives are discussed, EXECUTE:
-- CALL bulk-update-context WITH {"system_patterns": content}
+- CALL context.update WITH {"system_patterns": content}
 - Document final decision and rationale
 - Note constraints that influenced decision
 

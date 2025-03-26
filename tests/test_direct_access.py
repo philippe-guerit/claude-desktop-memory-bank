@@ -83,18 +83,18 @@ class TestDirectAccess:
         return DirectAccess(mock_context_service)
     
     @pytest.mark.asyncio
-    async def test_start_memory_bank(self, direct_access):
-        """Test the start_memory_bank direct access method."""
+    async def test_activate(self, direct_access):
+        """Test the activate direct access method."""
         # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.start_memory_bank', new_callable=AsyncMock) as mock_start:
-            mock_start.return_value = {
+        with patch('memory_bank_server.server.direct_access.activate', new_callable=AsyncMock) as mock_activate:
+            mock_activate.return_value = {
                 'selected_memory_bank': {'type': 'repository'},
                 'actions_taken': ['detected repository'],
                 'prompt_name': None
             }
             
             # Call the method
-            result = await direct_access.start_memory_bank(
+            result = await direct_access.activate(
                 prompt_name=None,
                 auto_detect=True,
                 current_path='/path/to/repo',
@@ -102,7 +102,7 @@ class TestDirectAccess:
             )
             
             # Verify that the method was called correctly
-            mock_start.assert_called_once()
+            mock_activate.assert_called_once()
             
             # Verify the response structure
             assert 'selected_memory_bank' in result
@@ -110,17 +110,17 @@ class TestDirectAccess:
             assert 'prompt_name' in result
     
     @pytest.mark.asyncio
-    async def test_select_memory_bank(self, direct_access):
-        """Test the select_memory_bank direct access method."""
+    async def test_select(self, direct_access):
+        """Test the select direct access method."""
         # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.select_memory_bank', new_callable=AsyncMock) as mock_select:
+        with patch('memory_bank_server.server.direct_access.select', new_callable=AsyncMock) as mock_select:
             mock_select.return_value = {
                 'type': 'repository',
                 'path': '/path/to/memory-bank'
             }
             
             # Test with global type
-            result = await direct_access.select_memory_bank(type='global')
+            result = await direct_access.select(type='global')
             
             # Verify that the method was called correctly
             mock_select.assert_called_with(
@@ -131,10 +131,10 @@ class TestDirectAccess:
             )
     
     @pytest.mark.asyncio
-    async def test_list_memory_banks(self, direct_access):
-        """Test the list_memory_banks direct access method."""
+    async def test_list(self, direct_access):
+        """Test the list direct access method."""
         # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.list_memory_banks', new_callable=AsyncMock) as mock_list:
+        with patch('memory_bank_server.server.direct_access.list', new_callable=AsyncMock) as mock_list:
             mock_list.return_value = {
                 'current': {'type': 'global'},
                 'available': {
@@ -145,7 +145,7 @@ class TestDirectAccess:
             }
             
             # Call the method
-            result = await direct_access.list_memory_banks()
+            result = await direct_access.list()
             
             # Verify that the method was called correctly
             mock_list.assert_called_once_with(direct_access.context_service)
@@ -155,11 +155,11 @@ class TestDirectAccess:
             assert 'available' in result
     
     @pytest.mark.asyncio
-    async def test_bulk_update_context(self, direct_access):
-        """Test the bulk_update_context direct access method."""
+    async def test_update(self, direct_access):
+        """Test the update direct access method."""
         # Create patch for core function
-        with patch('memory_bank_server.server.direct_access.bulk_update_context', new_callable=AsyncMock) as mock_bulk:
-            mock_bulk.return_value = {
+        with patch('memory_bank_server.server.direct_access.update', new_callable=AsyncMock) as mock_update:
+            mock_update.return_value = {
                 'type': 'repository',
                 'path': '/path/to/memory-bank'
             }
@@ -171,10 +171,10 @@ class TestDirectAccess:
             }
             
             # Call the method
-            result = await direct_access.bulk_update_context(updates=updates)
+            result = await direct_access.update(updates=updates)
             
             # Verify that the method was called correctly
-            mock_bulk.assert_called_once_with(direct_access.context_service, updates)
+            mock_update.assert_called_once_with(direct_access.context_service, updates)
             
             # Verify the result
             assert result['type'] == 'repository'

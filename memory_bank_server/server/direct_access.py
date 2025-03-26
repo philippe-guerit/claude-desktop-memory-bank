@@ -9,11 +9,14 @@ import logging
 from typing import Dict, List, Optional, Any
 
 from ..core import (
-    start_memory_bank,
-    select_memory_bank,
-    list_memory_banks,
+    # Fluent API-style functions
+    activate,
+    select,
+    list,
+    update,
+    
+    # Context functions
     get_context,
-    bulk_update_context,
     get_all_context,
     get_memory_bank_info
 )
@@ -34,9 +37,9 @@ class DirectAccess:
         """
         self.context_service = context_service
     
-    # Memory bank management
+    # New fluent API-style methods
     
-    async def start_memory_bank(
+    async def activate(
         self,
         prompt_name: Optional[str] = None,
         auto_detect: bool = True,
@@ -45,7 +48,7 @@ class DirectAccess:
         project_name: Optional[str] = None,
         project_description: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Start a memory bank with unified approach.
+        """Activate a memory bank with unified approach (fluent API style).
         
         Args:
             prompt_name: Optional name of the prompt to load
@@ -58,7 +61,7 @@ class DirectAccess:
         Returns:
             Dictionary with result data
         """
-        return await start_memory_bank(
+        return await activate(
             self.context_service,
             prompt_name=prompt_name,
             auto_detect=auto_detect,
@@ -68,13 +71,13 @@ class DirectAccess:
             project_description=project_description
         )
     
-    async def select_memory_bank(
+    async def select(
         self,
         type: str = "global", 
         project_name: Optional[str] = None, 
         repository_path: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Select a memory bank.
+        """Select a memory bank (fluent API style).
         
         Args:
             type: The type of memory bank to use
@@ -84,22 +87,33 @@ class DirectAccess:
         Returns:
             Dictionary with memory bank information
         """
-        return await select_memory_bank(
+        return await select(
             self.context_service,
             type=type,
             project_name=project_name,
             repository_path=repository_path
         )
     
-    async def list_memory_banks(self) -> Dict[str, Any]:
-        """List all available memory banks.
+    async def list(self) -> Dict[str, Any]:
+        """List all available memory banks (fluent API style).
         
         Returns:
             Dictionary with memory bank information
         """
-        return await list_memory_banks(self.context_service)
+        return await list(self.context_service)
     
-    # Removed deprecated repository and project methods
+    async def update(self, updates: Dict[str, str]) -> Dict[str, Any]:
+        """Update multiple context files at once (fluent API style).
+        
+        Args:
+            updates: Dictionary with updates
+            
+        Returns:
+            Dictionary with memory bank information
+        """
+        return await update(self.context_service, updates)
+    
+    # Removed deprecated methods
     
     # Context operations
     
@@ -115,16 +129,7 @@ class DirectAccess:
         return await get_context(self.context_service, context_type)
     
 
-    async def bulk_update_context(self, updates: Dict[str, str]) -> Dict[str, Any]:
-        """Update multiple context files at once.
-        
-        Args:
-            updates: Dictionary with updates
-            
-        Returns:
-            Dictionary with memory bank information
-        """
-        return await bulk_update_context(self.context_service, updates)
+    # Removed deprecated methods
     
 
     

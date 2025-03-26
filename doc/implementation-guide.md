@@ -24,13 +24,13 @@ The system has been streamlined to use exactly 4 core tools:
 │                   Memory Bank Core Tools                   │
 ├───────────────────┬───────────────────┬───────────────────┤
 │                   │                   │                   │
-│  memory-bank-start│ select-memory-bank│ bulk-update-context│
+│  context.activate │  context.select   │   context.update  │
 │                   │                   │                   │
 └───────────────────┴───────────────────┴───────────────────┘
                               │
                    ┌───────────────────┐
                    │                   │
-                   │ list-memory-banks │
+                   │   context.list    │
                    │                   │
                    └───────────────────┘
 ```
@@ -645,9 +645,9 @@ class FastMCPIntegration:
     def _register_tool_handlers(self) -> None:
         """Register tool handlers with the FastMCP server."""
         
-        # Tool 1: memory-bank-start - unified initialization tool
-        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank with context-aware detection")
-        async def memory_bank_start_tool(
+        # Tool 1: context.activate - unified initialization tool
+        @self.server.tool(name="context.activate", description="Activate the memory bank with context-aware detection")
+        async def context_activate_tool(
             prompt_name: Optional[str] = None,
             auto_detect: bool = True,
             current_path: Optional[str] = None,
@@ -655,12 +655,12 @@ class FastMCPIntegration:
             project_name: Optional[str] = None,
             project_description: Optional[str] = None
         ) -> str:
-            """Initialize the memory bank with context-aware detection."""
+            """Activate the memory bank with context-aware detection."""
             # Implementation...
             
-        # Tool 2: select-memory-bank
-        @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
-        async def select_memory_bank_tool(
+        # Tool 2: context.select
+        @self.server.tool(name="context.select", description="Select which memory bank to use for the conversation")
+        async def context_select_tool(
             type: str = "global", 
             project: Optional[str] = None, 
             repository_path: Optional[str] = None
@@ -668,15 +668,15 @@ class FastMCPIntegration:
             """Select which memory bank to use for the conversation."""
             # Implementation...
             
-        # Tool 3: bulk-update-context
-        @self.server.tool(name="bulk-update-context", description="Update multiple context files in one operation")
-        async def bulk_update_context_tool(updates: Dict[str, str]) -> str:
+        # Tool 3: context.update
+        @self.server.tool(name="context.update", description="Update multiple context files in one operation")
+        async def context_update_tool(updates: Dict[str, str]) -> str:
             """Update multiple context files in one operation."""
             # Implementation...
             
-        # Tool 4: list-memory-banks
-        @self.server.tool(name="list-memory-banks", description="List all available memory banks")
-        async def list_memory_banks_tool() -> str:
+        # Tool 4: context.list
+        @self.server.tool(name="context.list", description="List all available memory banks")
+        async def context_list_tool() -> str:
             """List all available memory banks."""
             # Implementation...
     

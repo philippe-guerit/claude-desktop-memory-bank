@@ -8,7 +8,7 @@ managing memory banks, independent of the FastMCP integration.
 import os
 from typing import Dict, List, Optional, Any
 
-async def start_memory_bank(
+async def activate(
     context_service,
     prompt_name: Optional[str] = None,
     auto_detect: bool = True,
@@ -17,7 +17,7 @@ async def start_memory_bank(
     project_name: Optional[str] = None,
     project_description: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Core business logic for starting a memory bank.
+    """Core business logic for activating a memory bank.
     
     Args:
         context_service: The context service instance
@@ -83,8 +83,7 @@ async def start_memory_bank(
                     
                 # Set selected memory bank to the new project
                 if not force_type:
-                    selected_memory_bank = await select_memory_bank(
-                        context_service,
+                    selected_memory_bank = await context_service.set_memory_bank(
                         type="project",
                         project_name=project_name
                     )
@@ -110,8 +109,7 @@ async def start_memory_bank(
             # If memory bank exists, explicitly select it here
             actions_taken.append(f"Using existing repository memory bank: {detected_repo.get('name', '')}")
             # This is the key fix - select the memory bank immediately here
-            selected_memory_bank = await select_memory_bank(
-                context_service,
+            selected_memory_bank = await context_service.set_memory_bank(
                 type="repository",
                 repository_path=detected_repo.get('path', '')
             )
@@ -120,20 +118,18 @@ async def start_memory_bank(
     # Step 4: Handle forced memory bank type if specified
     if force_type and not selected_memory_bank:
         if force_type == "global":
-            selected_memory_bank = await select_memory_bank(context_service)
+            selected_memory_bank = await context_service.set_memory_bank()
             actions_taken.append("Forced selection of global memory bank")
         elif force_type.startswith("project:"):
             project_name = force_type.split(":", 1)[1]
-            selected_memory_bank = await select_memory_bank(
-                context_service, 
+            selected_memory_bank = await context_service.set_memory_bank(
                 type="project", 
                 project_name=project_name
             )
             actions_taken.append(f"Forced selection of project memory bank: {project_name}")
         elif force_type.startswith("repository:"):
             repo_path = force_type.split(":", 1)[1]
-            selected_memory_bank = await select_memory_bank(
-                context_service,
+            selected_memory_bank = await context_service.set_memory_bank(
                 type="repository",
                 repository_path=repo_path
             )
@@ -155,7 +151,7 @@ async def start_memory_bank(
     
     return result
 
-async def select_memory_bank(
+async def select(
     context_service,
     type: str = "global", 
     project_name: Optional[str] = None, 
@@ -178,7 +174,7 @@ async def select_memory_bank(
         repository_path=repository_path
     )
 
-async def list_memory_banks(context_service) -> Dict[str, Any]:
+async def list(context_service) -> Dict[str, Any]:
     """Core logic for listing all available memory banks.
     
     Args:
@@ -194,6 +190,8 @@ async def list_memory_banks(context_service) -> Dict[str, Any]:
         "current": current_memory_bank,
         "available": all_memory_banks
     }
+
+
 
 # Internal helper functions for memory-bank-start
 # These are not exposed directly as tools but used by memory-bank-start internally

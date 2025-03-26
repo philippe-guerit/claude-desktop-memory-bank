@@ -7,19 +7,7 @@ managing context data, independent of the FastMCP integration.
 
 from typing import Dict, List, Optional, Any
 
-async def get_context(context_service, context_type: str) -> str:
-    """Core logic for getting a specific context file.
-    
-    Args:
-        context_service: The context service instance
-        context_type: The type of context to get
-        
-    Returns:
-        Content of the context file
-    """
-    return await context_service.get_context(context_type)
-
-async def bulk_update_context(
+async def update(
     context_service,
     updates: Dict[str, str]
 ) -> Dict[str, Any]:
@@ -33,6 +21,20 @@ async def bulk_update_context(
         Dictionary with memory bank information
     """
     return await context_service.bulk_update_context(updates)
+
+async def get_context(context_service, context_type: str) -> str:
+    """Core logic for getting a specific context file.
+    
+    Args:
+        context_service: The context service instance
+        context_type: The type of context to get
+        
+    Returns:
+        Content of the context file
+    """
+    return await context_service.get_context(context_type)
+
+
 
 
 # Internal helper function for pruning - used by memory-bank-start internally

@@ -80,10 +80,10 @@ flowchart LR
 
 The Memory Bank system uses a streamlined set of just 4 MCP tools that provide all necessary functionality with reduced cognitive load:
 
-- **memory-bank-start**: Unified tool for initialization, repository detection, project creation, and prompt loading
-- **select-memory-bank**: For selecting specific memory banks
-- **bulk-update-context**: For updating multiple context files in one operation
-- **list-memory-banks**: For diagnostics and reference
+- **context.activate**: Unified tool for initialization, repository detection, project creation, and prompt loading
+- **context.select**: For selecting specific memory banks
+- **context.update**: For updating multiple context files in one operation
+- **context.list**: For diagnostics and reference
 
 ```mermaid
 flowchart LR
@@ -91,10 +91,10 @@ flowchart LR
     FastMCP --> Tools[Tool Handlers]
     Tools --> Core[Core Business Logic]
     Core --> ContextSvc[Context Service]
-    ContextSvc --> MBS[memory-bank-start]
-    ContextSvc --> SMB[select-memory-bank]
-    ContextSvc --> BUC[bulk-update-context]
-    ContextSvc --> LMB[list-memory-banks]
+    ContextSvc --> MBS[context.activate]
+    ContextSvc --> SMB[context.select]
+    ContextSvc --> BUC[context.update]
+    ContextSvc --> LMB[context.list]
 ```
 
 ### 3. Prompts
@@ -335,8 +335,8 @@ sequenceDiagram
     participant RepoSvc as Repository Service
     
     User->>CD: Mention working in repository
-    CD->>FastMCP: Silently call detect_repository tool
-    FastMCP->>Core: Call detect_repository function
+    CD->>FastMCP: Silently call context.activate tool
+    FastMCP->>Core: Call activate function
     Core->>ContextSvc: Request repository detection
     ContextSvc->>RepoSvc: Check path for Git repository
     RepoSvc-->>ContextSvc: Return repository info
@@ -344,12 +344,10 @@ sequenceDiagram
     Core-->>FastMCP: Return detected repository
     
     alt Repository has memory bank
-        FastMCP->>Core: Call select_memory_bank function
         Core->>ContextSvc: Select repository memory bank
         ContextSvc-->>Core: Memory bank selected
         Core-->>FastMCP: Return memory bank info
     else Repository needs memory bank
-        FastMCP->>Core: Call initialize_repository_memory_bank function
         Core->>ContextSvc: Initialize repository memory bank
         ContextSvc->>RepoSvc: Create .claude-memory directory
         RepoSvc-->>ContextSvc: Memory bank initialized
@@ -374,8 +372,8 @@ sequenceDiagram
     
     User->>CD: Share important information
     Note over CD: Identify information worth persisting
-    CD->>FastMCP: Silently call update_context tool
-    FastMCP->>Core: Call update_context function
+    CD->>FastMCP: Silently call context.update tool
+    FastMCP->>Core: Call update function
     Core->>ContextSvc: Update context in current memory bank
     ContextSvc->>StorageSvc: Write to context file
     StorageSvc-->>ContextSvc: File updated
@@ -440,9 +438,9 @@ The Memory Bank Tool Simplification project was guided by these key design goals
 
 ### Key Design Decisions
 
-#### Unified Initialization with memory-bank-start
+#### Unified Initialization with context.activate
 
-The `memory-bank-start` tool now handles multiple responsibilities that were previously distributed across several tools:
+The `context.activate` tool now handles multiple responsibilities that were previously distributed across several tools:
 
 1. **Repository Detection**: Automatically identifies Git repositories
 2. **Project Creation**: Creates new projects when requested
@@ -456,7 +454,7 @@ This unified approach eliminates race conditions that could occur when these ope
 
 #### Consolidation of Context Updates
 
-All context updates now go through the `bulk-update-context` tool, which can update multiple context files in a single operation. This replaces the previous approach of having separate tools for different update scenarios.
+All context updates now go through the `context.update` tool, which can update multiple context files in a single operation. This replaces the previous approach of having separate tools for different update scenarios.
 
 Benefits of this approach:
 - Fewer API calls for common operations
@@ -468,7 +466,7 @@ Benefits of this approach:
 Rather than relying on explicit tool calls for operations like auto-summarization and pruning, the system now leverages Claude's custom instructions to perform these operations autonomously:
 
 - **Auto-summarization**: Claude intelligently extracts and updates context based on conversation
-- **Automatic Pruning**: Integrated into `memory-bank-start` with content-specific age thresholds
+- **Automatic Pruning**: Integrated into `context.activate` with content-specific age thresholds
 - **Smart Update Detection**: Claude monitors for significant information worth persisting
 
 ### Migration Path

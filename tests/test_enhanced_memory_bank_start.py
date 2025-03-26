@@ -15,8 +15,8 @@ import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
 
 # Import core functionality
-from memory_bank_server.core.memory_bank import start_memory_bank
-from memory_bank_server.core.memory_bank import select_memory_bank
+from memory_bank_server.core.memory_bank import activate
+from memory_bank_server.core.memory_bank import select
 
 class TestEnhancedMemoryBankStart(unittest.TestCase):
     """Test cases for the enhanced memory-bank-start functionality."""
@@ -107,8 +107,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
         self.context_service.get_current_memory_bank.return_value = {"type": "global"}
         self.context_service.repository_service.detect_repository.return_value = None
         
-        # Call start_memory_bank with no parameters
-        result = await start_memory_bank(self.context_service)
+        # Call activate with no parameters
+        result = await activate(self.context_service)
         
         # Verify result
         self.assertEqual(result["selected_memory_bank"]["type"], "global")
@@ -137,8 +137,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
             "repo_info": mock_repo_info
         }
         
-        # Call start_memory_bank with repository path
-        result = await start_memory_bank(
+        # Call activate with repository path
+        result = await activate(
             self.context_service,
             current_path=self.repo_dir
         )
@@ -166,8 +166,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
             "project": "test_project"
         }
         
-        # Call start_memory_bank with project parameters
-        result = await start_memory_bank(
+        # Call activate with project parameters
+        result = await activate(
             self.context_service,
             project_name="test_project",
             project_description="A test project"
@@ -202,8 +202,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
             "project": "test_project"
         }
         
-        # Call start_memory_bank with project parameters and repository path
-        result = await start_memory_bank(
+        # Call activate with project parameters and repository path
+        result = await activate(
             self.context_service,
             current_path=self.repo_dir,
             project_name="test_project",
@@ -237,8 +237,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
             "repo_info": mock_repo_info
         }
         
-        # Call start_memory_bank with repository path
-        result = await start_memory_bank(
+        # Call activate with repository path
+        result = await activate(
             self.context_service,
             current_path=self.repo_dir
         )
@@ -254,8 +254,8 @@ class TestEnhancedMemoryBankStart(unittest.TestCase):
         # Set up mock for set_memory_bank
         self.context_service.set_memory_bank.return_value = {"type": "global"}
         
-        # Call start_memory_bank with forced global type
-        result = await start_memory_bank(
+        # Call activate with forced global type
+        result = await activate(
             self.context_service,
             force_type="global"
         )

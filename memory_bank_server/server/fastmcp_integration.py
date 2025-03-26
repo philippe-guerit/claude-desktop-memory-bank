@@ -15,11 +15,14 @@ from typing import Dict, List, Optional, Any, Callable
 from mcp.server import FastMCP
 
 from ..core import (
-    start_memory_bank,
-    select_memory_bank,
-    list_memory_banks,
+    # Fluent API-style functions
+    activate,
+    select,
+    list,
+    update,
+    
+    # Context functions
     get_context,
-    bulk_update_context,
     get_all_context,
     get_memory_bank_info
 )
@@ -205,9 +208,9 @@ Branch: {repo_info.get('branch', '')}
     
     def _register_tool_handlers(self) -> None:
         """Register tool handlers with the FastMCP server."""
-        # Memory bank start tool
-        @self.server.tool(name="memory-bank-start", description="Initialize the memory bank with context-aware detection")
-        async def memory_bank_start_tool(
+        # Context Activate tool (replaces memory-bank-start)
+        @self.server.tool(name="context.activate", description="Activate the memory bank with context-aware detection")
+        async def context_activate_tool(
             prompt_name: Optional[str] = None,
             auto_detect: bool = True,
             current_path: Optional[str] = None,
@@ -215,9 +218,9 @@ Branch: {repo_info.get('branch', '')}
             project_name: Optional[str] = None,
             project_description: Optional[str] = None
         ) -> str:
-            """Initialize the memory bank with context-aware detection.
+            """Activate the memory bank with context-aware detection.
             
-            This enhanced tool can create projects, detect repositories, and initialize memory banks
+            This tool can create projects, detect repositories, and initialize memory banks
             based on the provided parameters and context.
             """
             try:
@@ -233,7 +236,7 @@ Branch: {repo_info.get('branch', '')}
                 logger.info(log_msg)
                 
                 # Call the core business logic with all parameters
-                result = await start_memory_bank(
+                result = await activate(
                     self.context_service,
                     prompt_name=prompt_name,
                     auto_detect=auto_detect,
@@ -406,9 +409,9 @@ Branch: {repo_info.get('branch', '')}
                 logger.error(f"Error starting memory bank: {str(e)}")
                 return f"Error starting memory bank: {str(e)}"
         
-        # Select memory bank tool
-        @self.server.tool(name="select-memory-bank", description="Select which memory bank to use for the conversation")
-        async def select_memory_bank_tool(
+        # Context Select tool (replaces select-memory-bank)
+        @self.server.tool(name="context.select", description="Select which memory bank to use for the conversation")
+        async def context_select_tool(
             type: str = "global", 
             project: Optional[str] = None, 
             repository_path: Optional[str] = None
@@ -419,7 +422,7 @@ Branch: {repo_info.get('branch', '')}
                 
                 # Call the core business logic
                 try:
-                    memory_bank = await select_memory_bank(
+                    memory_bank = await select(
                         self.context_service,
                         type=type,
                         project_name=project,
@@ -451,15 +454,15 @@ Branch: {repo_info.get('branch', '')}
         
         # Removed deprecated create-project tool
         
-        # List memory banks tool
-        @self.server.tool(name="list-memory-banks", description="List all available memory banks")
-        async def list_memory_banks_tool() -> str:
+        # Context List tool (replaces list-memory-banks)
+        @self.server.tool(name="context.list", description="List all available memory banks")
+        async def context_list_tool() -> str:
             """List all available memory banks."""
             try:
                 logger.info("Listing all memory banks")
                 
                 # Call the core business logic
-                result = await list_memory_banks(self.context_service)
+                result = await list(self.context_service)
                 
                 current_memory_bank = result["current"]
                 memory_banks = result["available"]
@@ -514,16 +517,16 @@ Branch: {repo_info.get('branch', '')}
 
         
 
-        # Bulk update context tool
-        @self.server.tool(name="bulk-update-context", description="Update multiple context files in one operation")
-        async def bulk_update_context_tool(updates: Dict[str, str]) -> str:
+        # Context Update tool (replaces bulk-update-context)
+        @self.server.tool(name="context.update", description="Update multiple context files in one operation")
+        async def context_update_tool(updates: Dict[str, str]) -> str:
             """Update multiple context files in one operation."""
             try:
                 logger.info(f"Bulk updating context with {len(updates)} updates")
                 
                 # Call the core business logic
                 try:
-                    memory_bank = await bulk_update_context(self.context_service, updates)
+                    memory_bank = await update(self.context_service, updates)
                     
                     # Wait for a moment to ensure file operations complete
                     await asyncio.sleep(0.1)

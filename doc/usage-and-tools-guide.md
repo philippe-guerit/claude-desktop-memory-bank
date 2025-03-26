@@ -163,7 +163,7 @@ Claude automatically:
 
 The Memory Bank system provides a streamlined set of just 4 MCP tools that enable Claude to manage memory banks and context information. This simplified architecture reduces cognitive load while maintaining all functionality. While these tools typically work automatically in the background, understanding them can help troubleshoot issues or implement advanced workflows.
 
-### memory-bank-start
+### context.activate
 
 Unified tool for memory bank initialization, repository detection, project creation, and custom prompt loading.
 
@@ -192,20 +192,20 @@ A detailed response containing:
 
 Creating a project and selecting its memory bank:
 ```
-memory-bank-start(project_name="MyProject", project_description="A web application for inventory tracking")
+context.activate(project_name="MyProject", project_description="A web application for inventory tracking")
 ```
 
 Initializing a repository memory bank:
 ```
-memory-bank-start(current_path="/path/to/repo")
+context.activate(current_path="/path/to/repo")
 ```
 
 Creating a project associated with a repository:
 ```
-memory-bank-start(current_path="/path/to/repo", project_name="RepoProject", project_description="Project for this repository")
+context.activate(current_path="/path/to/repo", project_name="RepoProject", project_description="Project for this repository")
 ```
 
-### select-memory-bank
+### context.select
 
 Selects which memory bank to use for the conversation.
 
@@ -223,7 +223,7 @@ This tool allows selecting a specific memory bank for the current conversation. 
 
 Information about the selected memory bank.
 
-### bulk-update-context
+### context.update
 
 Updates multiple context files in one operation.
 
@@ -242,13 +242,13 @@ A confirmation message about the bulk update.
 #### Example Usage
 
 ```
-bulk-update-context(updates={
+context.update(updates={
     "project_brief": "Updated project brief content...",
     "tech_context": "Updated technology context..."
 })
 ```
 
-### list-memory-banks
+### context.list
 
 Lists all available memory banks.
 

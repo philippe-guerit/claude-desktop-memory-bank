@@ -9,7 +9,7 @@ import os
 import re
 import logging
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any, Tuple
 
 from .storage_service import StorageService
@@ -240,8 +240,8 @@ class ContextService:
         metadata = {
             "name": name,
             "description": description,
-            "created": datetime.utcnow().isoformat(),
-            "lastModified": datetime.utcnow().isoformat()
+            "created": datetime.now(UTC).isoformat(),
+            "lastModified": datetime.now(UTC).isoformat()
         }
         
         # Add repository if specified

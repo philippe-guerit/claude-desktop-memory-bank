@@ -10,7 +10,7 @@ import shutil
 import asyncio
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
@@ -410,4 +410,4 @@ class StorageService:
         Returns:
             Current timestamp in ISO format
         """
-        return datetime.utcnow().isoformat()
+        return datetime.now(UTC).isoformat()

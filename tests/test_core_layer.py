@@ -7,7 +7,7 @@ This module contains tests for the pure business logic functions in the core lay
 import os
 import pytest
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from memory_bank_server.core import (
     start_memory_bank,
@@ -28,24 +28,52 @@ class TestCoreLayer:
         context_service = MagicMock()
         
         # Mock repository service
-        context_service.repository_service = MagicMock()
+        repository_service = MagicMock()
+        repository_service.detect_repository = AsyncMock()
+        repository_service.detect_repository.return_value = {
+            'name': 'test-repo',
+            'path': '/path/to/repo',
+            'branch': 'main',
+            'memory_bank_path': '/path/to/memory-bank'
+        }
+        repository_service.initialize_repository_memory_bank = AsyncMock()
+        repository_service.initialize_repository_memory_bank.return_value = {
+            'type': 'repository',
+            'repo_info': {
+                'name': 'test-repo',
+                'path': '/path/to/repo',
+                'branch': 'main'
+            }
+        }
+        context_service.repository_service = repository_service
         
-        # Mock context service methods
+        # Mock context service methods with AsyncMock
+        context_service.set_memory_bank = AsyncMock()
         context_service.set_memory_bank.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank'
         }
+        
+        context_service.get_current_memory_bank = AsyncMock()
         context_service.get_current_memory_bank.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank'
         }
+        
+        context_service.get_memory_banks = AsyncMock()
         context_service.get_memory_banks.return_value = {
             'global': [{'path': '/path/to/global'}],
             'projects': [{'name': 'test-project'}],
             'repositories': [{'name': 'test-repo', 'repo_path': '/path/to/repo'}]
         }
+        
+        context_service.get_context = AsyncMock()
         context_service.get_context.return_value = 'Context content'
+        
+        context_service.bulk_update_context = AsyncMock()
         context_service.bulk_update_context.return_value = {'type': 'global', 'path': '/path/to/global'}
+        
+        context_service.get_all_context = AsyncMock()
         context_service.get_all_context.return_value = {
             'project_brief': 'Project brief content',
             'active_context': 'Active context content'

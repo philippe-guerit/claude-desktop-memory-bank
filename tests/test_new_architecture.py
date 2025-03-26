@@ -8,10 +8,12 @@ of the Memory Bank system.
 import os
 import pytest
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from memory_bank_server.services import StorageService, RepositoryService, ContextService
 from memory_bank_server.server import MemoryBankServer
+
+# No need to explicitly import pytest-mock as it's now installed in the environment
 
 class TestNewArchitecture:
     """Test case for the new Memory Bank architecture."""
@@ -19,12 +21,37 @@ class TestNewArchitecture:
     @pytest.fixture
     def temp_dir(self, tmpdir):
         """Create a temporary directory for testing."""
+        # Create the templates directory
+        os.makedirs(os.path.join(str(tmpdir), "templates"), exist_ok=True)
+        
+        # Create template files
+        template_files = {
+            "projectbrief.md": "# Project Brief\n\n## Purpose\n\n## Goals\n\n## Requirements\n\n## Scope\n",
+            "productContext.md": "# Product Context\n\n## Problem\n\n## Solution\n\n## User Experience\n\n## Stakeholders\n",
+            "systemPatterns.md": "# System Patterns\n\n## Architecture\n\n## Patterns\n\n## Decisions\n\n## Relationships\n",
+            "techContext.md": "# Technical Context\n\n## Technologies\n\n## Setup\n\n## Constraints\n\n## Dependencies\n",
+            "activeContext.md": "# Active Context\n\n## Current Focus\n\n## Recent Changes\n\n## Next Steps\n\n## Active Decisions\n",
+            "progress.md": "# Progress\n\n## Completed\n\n## In Progress\n\n## Pending\n\n## Issues\n"
+        }
+        
+        # Write template files
+        for filename, content in template_files.items():
+            with open(os.path.join(str(tmpdir), "templates", filename), "w") as f:
+                f.write(content)
+                
         return str(tmpdir)
     
     @pytest.fixture
     def storage_service(self, temp_dir):
         """Create a storage service for testing."""
-        return StorageService(temp_dir)
+        service = StorageService(temp_dir)
+        
+        # Pre-create template directories and files needed for tests
+        os.makedirs(os.path.join(temp_dir, "templates"), exist_ok=True)
+        with open(os.path.join(temp_dir, "templates", "projectbrief.md"), "w") as f:
+            f.write("# Project Brief\n\n## Purpose\n\n## Goals\n\n## Requirements\n\n## Scope\n")
+        
+        return service
     
     @pytest.fixture
     def repository_service(self, storage_service):
@@ -39,7 +66,14 @@ class TestNewArchitecture:
     @pytest.fixture
     def server(self, temp_dir):
         """Create a memory bank server for testing."""
-        return MemoryBankServer(temp_dir)
+        server = MemoryBankServer(temp_dir)
+        
+        # Pre-create template directories and files needed for tests
+        os.makedirs(os.path.join(temp_dir, "templates"), exist_ok=True)
+        with open(os.path.join(temp_dir, "templates", "projectbrief.md"), "w") as f:
+            f.write("# Project Brief\n\n## Purpose\n\n## Goals\n\n## Requirements\n\n## Scope\n")
+        
+        return server
     
     @pytest.mark.asyncio
     async def test_server_initialization(self, server):
@@ -69,21 +103,15 @@ class TestNewArchitecture:
         assert os.path.exists(global_path)
     
     @pytest.mark.asyncio
-    async def test_context_service(self, context_service, mocker):
+    async def test_context_service(self, context_service):
         """Test basic context service functionality."""
         # Mock the get_context method
-        mocker.patch.object(
-            context_service, 
-            'get_context', 
-            return_value="Test context"
-        )
+        context_service.get_context = AsyncMock()
+        context_service.get_context.return_value = "Test context"
         
         # Mock the update_context method
-        mocker.patch.object(
-            context_service, 
-            'update_context', 
-            return_value={"type": "global", "path": "/path/to/global"}
-        )
+        context_service.update_context = AsyncMock()
+        context_service.update_context.return_value = {"type": "global", "path": "/path/to/global"}
         
         # Initialize the context service
         await context_service.initialize()
@@ -97,14 +125,11 @@ class TestNewArchitecture:
         assert result["type"] == "global"
     
     @pytest.mark.asyncio
-    async def test_direct_access(self, server, mocker):
+    async def test_direct_access(self, server):
         """Test direct access methods."""
         # Mock the context service
-        mocker.patch.object(
-            server.context_service,
-            'get_context',
-            return_value="Test context"
-        )
+        server.context_service.get_context = AsyncMock()
+        server.context_service.get_context.return_value = "Test context"
         
         # Initialize the server
         await server.initialize()

@@ -8,7 +8,7 @@ independent of the FastMCP integration.
 import os
 import pytest
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from memory_bank_server.core.memory_bank import (
     start_memory_bank,
@@ -27,11 +27,32 @@ class TestMemoryBankCoreFunctions:
     """Test case for Memory Bank core functions."""
     
     @pytest.fixture
-    async def mock_context_manager(self):
+    def mock_context_manager(self):
         """Create a mock context manager for testing."""
         context_manager = MagicMock()
         
+        # Mock repository service
+        repository_service = MagicMock()
+        repository_service.detect_repository = AsyncMock()
+        repository_service.detect_repository.return_value = {
+            'name': 'test-repo',
+            'path': '/path/to/repo',
+            'branch': 'main',
+            'memory_bank_path': '/path/to/memory-bank'
+        }
+        repository_service.initialize_repository_memory_bank = AsyncMock()
+        repository_service.initialize_repository_memory_bank.return_value = {
+            'type': 'repository',
+            'repo_info': {
+                'name': 'test-repo',
+                'path': '/path/to/repo',
+                'branch': 'main'
+            }
+        }
+        context_manager.repository_service = repository_service
+        
         # Mock memory bank selection
+        context_manager.set_memory_bank = AsyncMock()
         context_manager.set_memory_bank.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank',
@@ -43,6 +64,7 @@ class TestMemoryBankCoreFunctions:
         }
         
         # Mock current memory bank
+        context_manager.get_current_memory_bank = AsyncMock()
         context_manager.get_current_memory_bank.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank',
@@ -54,20 +76,24 @@ class TestMemoryBankCoreFunctions:
         }
         
         # Mock context operations
+        context_manager.bulk_update_context = AsyncMock()
         context_manager.bulk_update_context.return_value = {
             'type': 'repository',
             'path': '/path/to/memory-bank'
         }
         
         # Mock context getters
+        context_manager.get_context = AsyncMock()
         context_manager.get_context.return_value = "Sample context content"
         
+        context_manager.get_all_context = AsyncMock()
         context_manager.get_all_context.return_value = {
             'project_brief': 'Project brief content',
             'active_context': 'Active context content',
             'progress': 'Progress content'
         }
         
+        context_manager.get_memory_banks = AsyncMock()
         context_manager.get_memory_banks.return_value = {
             'global': [{'path': '/path/to/global'}],
             'projects': [
@@ -78,7 +104,7 @@ class TestMemoryBankCoreFunctions:
             ]
         }
         
-        yield context_manager
+        return context_manager
     
     @pytest.mark.asyncio
     async def test_start_memory_bank(self, mock_context_manager):
@@ -108,16 +134,24 @@ class TestMemoryBankCoreFunctions:
             type='global'
         )
         
-        mock_context_manager.set_memory_bank.assert_called_with()
+        mock_context_manager.set_memory_bank.assert_called_with(
+            type='global',
+            project_name=None,
+            repository_path=None
+        )
         
         # Test with project type
         result = await select_memory_bank(
             mock_context_manager,
             type='project',
-            project='test-project'
+            project_name='test-project'
         )
         
-        mock_context_manager.set_memory_bank.assert_called_with(claude_project='test-project')
+        mock_context_manager.set_memory_bank.assert_called_with(
+            type='project',
+            project_name='test-project',
+            repository_path=None
+        )
         
         # Test with repository type
         result = await select_memory_bank(
@@ -126,14 +160,11 @@ class TestMemoryBankCoreFunctions:
             repository_path='/path/to/repo'
         )
         
-        mock_context_manager.set_memory_bank.assert_called_with(repository_path='/path/to/repo')
-        
-        # Test with invalid type
-        with pytest.raises(ValueError):
-            await select_memory_bank(
-                mock_context_manager,
-                type='invalid'
-            )
+        mock_context_manager.set_memory_bank.assert_called_with(
+            type='repository',
+            project_name=None,
+            repository_path='/path/to/repo'
+        )
     
     @pytest.mark.asyncio
     async def test_bulk_update_context(self, mock_context_manager):

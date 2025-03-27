@@ -56,7 +56,7 @@ class FastMCPIntegration:
             self.server = FastMCP(
                 name="memory-bank",
                 instructions=custom_instructions,
-                json_serializer=lambda obj: json.dumps(obj, separators=(',', ':'), ensure_ascii=True)
+                json_serializer=lambda obj: json.dumps(obj, separators=(',', ':'), ensure_ascii=True) + '\n'
             )
             
             # Store custom instructions for default prompt
@@ -518,9 +518,17 @@ Branch: {repo_info.get('branch', '')}
         
 
         # Context Update tool (replaces bulk-update-context)
-        @self.server.tool(name="context_update", description="Update multiple context files in one operation")
+        @self.server.tool(name="context_update", description="Update multiple context files in one operation. Accepts a dictionary of updates where keys are context types (\"project_brief\", \"system_patterns\", \"active_context\", etc.) and values can be either: 1) string with complete new content, or 2) dictionary mapping section headers to new section content (for targeted updates). All updates are applied atomically with verification.")
         async def context_update_tool(updates: Dict[str, str]) -> str:
-            """Update multiple context files in one operation."""
+            """Update multiple context files in one operation.
+            
+            This tool supports two update modes:
+            1. Full file update - provide a string with complete new content
+            2. Section update - provide a dictionary mapping section headers to new content
+               Example: {"project_brief": {"Requirements": "- New requirement 1\n- New requirement 2"}}
+            
+            All updates are applied atomically with verification.
+            """
             try:
                 logger.info(f"Bulk updating context with {len(updates)} updates")
                 
@@ -683,31 +691,6 @@ Branch: {repo_info.get('branch', '')}
         """Run the FastMCP server."""
         if not self.is_available():
             raise RuntimeError("FastMCP server is not available")
-        
-        # Override the server's JSON serialization to ensure proper formatting
-        import json
-        import sys
-        
-        # Store original methods
-        original_stdout_write = sys.stdout.write
-        original_json_dumps = json.dumps
-        
-        # Define a wrapper for stdout.write to ensure proper message formatting
-        def custom_stdout_write(data):
-            # If this looks like JSON, ensure it's properly formatted
-            if data.strip().startswith('{'):
-                try:
-                    # Parse and re-serialize to ensure clean JSON
-                    parsed = json.loads(data)
-                    clean_data = original_json_dumps(parsed, separators=(',', ':'), ensure_ascii=True) + '\n'
-                    return original_stdout_write(clean_data)
-                except:
-                    pass
-            # For non-JSON data, proceed as normal
-            return original_stdout_write(data)
-        
-        # Replace stdout.write with our custom version
-        sys.stdout.write = custom_stdout_write
         
         logger.info("Memory Bank server running with FastMCP integration")
         await self.server.run_stdio_async()

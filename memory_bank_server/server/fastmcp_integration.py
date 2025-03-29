@@ -10,7 +10,7 @@ import json  # Added import
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Union
 
 from mcp.server import FastMCP
 
@@ -222,6 +222,28 @@ Branch: {repo_info.get('branch', '')}
             
             This tool can create projects, detect repositories, and initialize memory banks
             based on the provided parameters and context.
+            
+            Examples:
+              # Auto-detect repository in current directory
+              context_activate()
+              
+              # Detect repository in specific path
+              context_activate(current_path="/path/to/repo")
+              
+              # Create a new project
+              context_activate(project_name="My Project", project_description="Project description")
+              
+              # Force global memory bank
+              context_activate(force_type="global")
+              
+              # Force specific project memory bank
+              context_activate(force_type="project:MyProject")
+              
+              # Force specific repository memory bank
+              context_activate(force_type="repository:/path/to/repo")
+              
+              # Load a specific prompt template
+              context_activate(prompt_name="create-project-brief")
             """
             try:
                 log_msg = f"Starting memory bank with prompt: {prompt_name if prompt_name else 'default'}, " + \
@@ -416,7 +438,18 @@ Branch: {repo_info.get('branch', '')}
             project: Optional[str] = None, 
             repository_path: Optional[str] = None
         ) -> str:
-            """Select which memory bank to use for the conversation."""
+            """Select which memory bank to use for the conversation.
+            
+            Examples:
+              # Select global memory bank
+              context_select(type="global")
+              
+              # Select a project memory bank
+              context_select(type="project", project="My Project")
+              
+              # Select a repository memory bank
+              context_select(type="repository", repository_path="/path/to/repo")
+            """
             try:
                 logger.info(f"Selecting memory bank: type={type}, project={project}, repository_path={repository_path}")
                 
@@ -457,7 +490,18 @@ Branch: {repo_info.get('branch', '')}
         # Context List tool (replaces list-memory-banks)
         @self.server.tool(name="context_list", description="List all available memory banks")
         async def context_list_tool() -> str:
-            """List all available memory banks."""
+            """List all available memory banks.
+            
+            Returns information about all memory banks including:
+            - The currently active memory bank
+            - Available global memory bank
+            - Available project memory banks
+            - Available repository memory banks
+            
+            Example:
+              # List all available memory banks
+              context_list()
+            """
             try:
                 logger.info("Listing all memory banks")
                 
@@ -519,13 +563,37 @@ Branch: {repo_info.get('branch', '')}
 
         # Context Update tool (replaces bulk-update-context)
         @self.server.tool(name="context_update", description="Update multiple context files in one operation. Accepts a dictionary of updates where keys are context types (\"project_brief\", \"system_patterns\", \"active_context\", etc.) and values can be either: 1) string with complete new content, or 2) dictionary mapping section headers to new section content (for targeted updates). All updates are applied atomically with verification.")
-        async def context_update_tool(updates: Dict[str, str]) -> str:
+        async def context_update_tool(updates: Dict[str, Union[str, Dict[str, str]]]) -> str:
             """Update multiple context files in one operation.
             
             This tool supports two update modes:
             1. Full file update - provide a string with complete new content
             2. Section update - provide a dictionary mapping section headers to new content
-               Example: {"project_brief": {"Requirements": "- New requirement 1\n- New requirement 2"}}
+               
+            Examples:
+              # Update multiple entire files
+              {
+                "active_context": "## Current Focus\n\nFocus content here...\n\n## Recent Changes\n\nChanges content here...",
+                "progress": "## Completed\n\nCompleted tasks here..."
+              }
+              
+              # Update specific sections across multiple files
+              {
+                "project_brief": {
+                  "Requirements": "- New requirement 1\n- New requirement 2"
+                },
+                "active_context": {
+                  "Current Focus": "- Implementing feature X\n- Testing component Y"
+                }
+              }
+              
+              # Update multiple sections in the same file
+              {
+                "progress": {
+                  "Completed": "- Task A completed\n- Task B completed",
+                  "In Progress": "- Task C in progress\n- Task D in progress"
+                }
+              }
             
             All updates are applied atomically with verification.
             """

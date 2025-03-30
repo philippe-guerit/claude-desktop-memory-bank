@@ -13,8 +13,8 @@ import argparse
 
 def run_tests(patterns=None, verbose=False, coverage=False, failfast=False):
     """Run the tests with the given options."""
-    # Build the pytest command with venv python
-    venv_python = os.path.join(os.path.dirname(__file__), 'venv', 'bin', 'python')
+    # Build the pytest command with venv python (.venv is the standard notation)
+    venv_python = os.path.join(os.path.dirname(__file__), '.venv', 'bin', 'python')
     cmd = [venv_python, "-m", "pytest"]
     
     # Add verbosity

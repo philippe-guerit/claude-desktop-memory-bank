@@ -14,6 +14,14 @@ from typing import Dict, List, Optional, Any, Callable, Union
 
 from mcp.server import FastMCP
 
+# Import schemas for tool validation
+from .tool_schemas import (
+    context_activate_schema,
+    context_select_schema,
+    context_list_schema,
+    context_update_schema
+)
+
 from ..core import (
     # Fluent API-style functions
     activate,
@@ -209,7 +217,10 @@ Branch: {repo_info.get('branch', '')}
     def _register_tool_handlers(self) -> None:
         """Register tool handlers with the FastMCP server."""
         # Context Activate tool (replaces memory-bank-start)
-        @self.server.tool(name="context_activate", description="Activate the memory bank with context-aware detection")
+        @self.server.tool(
+            name="context_activate", 
+            description="Activate the memory bank with context-aware detection"
+        )
         async def context_activate_tool(
             prompt_name: Optional[str] = None,
             auto_detect: bool = True,
@@ -432,7 +443,10 @@ Branch: {repo_info.get('branch', '')}
                 return f"Error starting memory bank: {str(e)}"
         
         # Context Select tool (replaces select-memory-bank)
-        @self.server.tool(name="context_select", description="Select which memory bank to use for the conversation")
+        @self.server.tool(
+            name="context_select", 
+            description="Select which memory bank to use for the conversation"
+        )
         async def context_select_tool(
             type: str = "global", 
             project: Optional[str] = None, 
@@ -488,7 +502,10 @@ Branch: {repo_info.get('branch', '')}
         # Removed deprecated create-project tool
         
         # Context List tool (replaces list-memory-banks)
-        @self.server.tool(name="context_list", description="List all available memory banks")
+        @self.server.tool(
+            name="context_list", 
+            description="List all available memory banks"
+        )
         async def context_list_tool() -> str:
             """List all available memory banks.
             
@@ -562,7 +579,10 @@ Branch: {repo_info.get('branch', '')}
         
 
         # Context Update tool (replaces bulk-update-context)
-        @self.server.tool(name="context_update", description="Update multiple context files in one operation. Accepts a dictionary of updates where keys are context types (\"project_brief\", \"system_patterns\", \"active_context\", etc.) and values can be either: 1) string with complete new content, or 2) dictionary mapping section headers to new section content (for targeted updates). All updates are applied atomically with verification.")
+        @self.server.tool(
+            name="context_update", 
+            description="Update multiple context files in one operation. Accepts a dictionary of updates where keys are context types (\"project_brief\", \"system_patterns\", \"active_context\", etc.) and values can be either: 1) string with complete new content, or 2) dictionary mapping section headers to new section content (for targeted updates). All updates are applied atomically with verification."
+        )
         async def context_update_tool(updates: Dict[str, Union[str, Dict[str, str]]]) -> str:
             """Update multiple context files in one operation.
             

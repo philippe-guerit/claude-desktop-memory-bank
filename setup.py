@@ -7,7 +7,7 @@ setup(
     author="Anthropic",
     packages=find_packages(),
     install_requires=[
-        "mcp==1.5.0",
+        "mcp==1.6.0",
         "httpx>=0.20.0",
         "gitpython>=3.1.0",
     ],

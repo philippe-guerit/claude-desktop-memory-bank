@@ -45,4 +45,5 @@ venv.bak/
 
 # Memory bank files (for testing)
 .claude-desktop/
+.claude-memory/
 test_storage/

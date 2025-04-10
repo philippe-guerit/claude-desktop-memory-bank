@@ -1,3 +1,8 @@
-mcp==1.6.0
-httpx>=0.20.0
-gitpython>=3.1.0
+mcp[cli]>=1.6.0
+httpx>=0.23.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+gitpython>=3.1.30
+pytest>=7.0.0
+pytest-asyncio>=0.20.0
+pytest-cov>=4.0.0

@@ -36,9 +36,7 @@ def register_list_tool(server: FastMCP, storage):
     
     @server.tool(
         name="list",
-        description="Lists all available memory banks by type",
-        usage="User wants to see available memory banks or choose which to use",
-        schema=list_schema
+        description="Lists all available memory banks by type"
     )
     async def list_banks(bank_type: Optional[str] = None) -> Dict[str, Any]:
         """List all available memory banks.

@@ -71,9 +71,7 @@ def register_update_tool(server: FastMCP, storage):
     
     @server.tool(
         name="update",
-        description="Updates the memory bank with new information from the conversation",
-        usage="Significant new information is discussed that should be persisted",
-        schema=update_schema
+        description="Updates the memory bank with new information from the conversation"
     )
     async def update(bank_type: str, bank_id: str, target_file: str, operation: str, content: str,
                      position: Optional[str] = None, trigger_type: Optional[str] = None,

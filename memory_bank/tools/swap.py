@@ -52,9 +52,7 @@ def register_swap_tool(server: FastMCP, storage):
     
     @server.tool(
         name="swap",
-        description="Changes the current conversation to use a different memory bank",
-        usage="Conversation shifts focus to a different project or context",
-        schema=swap_schema
+        description="Changes the current conversation to use a different memory bank"
     )
     async def swap(bank_type: str, bank_id: str, temporary: bool = False,
                    merge_files: Optional[List[str]] = None) -> Dict[str, Any]:

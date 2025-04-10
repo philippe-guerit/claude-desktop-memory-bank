@@ -54,9 +54,7 @@ def register_activate_tool(server: FastMCP, storage):
     
     @server.tool(
         name="activate",
-        description="Activates and loads a memory bank for the current conversation",
-        usage="At the beginning of a conversation to establish context",
-        schema=activate_schema
+        description="Activates and loads a memory bank for the current conversation"
     )
     async def activate(bank_type: str, bank_id: str,
                        current_path: Optional[str] = None,

@@ -288,6 +288,25 @@ The server leverages natural git workflow interactions:
 1. **Local Storage**: Files stored locally for privacy and performance
 2. **Incremental Updates**: Cache only regenerated when necessary
 3. **Granular Access**: Resources support fetching specific sections or summaries
+4. **Compatibility Patches**: Runtime patches ensure compatibility across dependencies
+
+## Compatibility System
+
+The Memory Bank includes a patching system to ensure compatibility with different MCP and Pydantic versions:
+
+### Patching Architecture
+
+1. **Runtime Patches**: Applies patches to third-party libraries at runtime
+2. **Import-Time Application**: Patches are applied when the package is imported
+3. **Targeted Fixes**: Focused patches for specific known issues
+4. **Graceful Degradation**: Falls back gracefully when patches cannot be applied
+
+### Current Patches
+
+The patching system addresses:
+1. **Pydantic Deprecation Warnings**: Fixes for accessing model fields from instances
+2. **MCP Compatibility**: Ensures compatibility with MCP 1.6.0+ API changes
+3. **Test Framework Configuration**: Properly configures pytest for asyncio testing
 
 ## Conclusion
 

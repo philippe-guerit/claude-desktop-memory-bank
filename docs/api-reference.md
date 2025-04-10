@@ -373,3 +373,47 @@ The server returns standard MCP error responses:
 - `"swap_failed"`: Failed to swap memory bank
 - `"update_failed"`: Failed to update memory bank
 - `"invalid_operation"`: Invalid update operation
+
+## Response Format
+
+### MCP 1.6.0+ Response Format
+
+In MCP 1.6.0 and later, tool responses are returned as `TextContent` objects with the following structure:
+
+```python
+[
+    TextContent(
+        type='text',
+        text='{"status": "success", "bank_info": {...}}',
+        annotations=None
+    )
+]
+```
+
+To handle these responses correctly, the Memory Bank includes a `parse_response` utility function:
+
+```python
+def parse_response(response):
+    """Parse MCP response from TextContent to dictionary."""
+    if isinstance(response, list) and len(response) > 0:
+        text_content = response[0]
+        if hasattr(text_content, 'text'):
+            return json.loads(text_content.text)
+    return response
+```
+
+This function is used to convert the TextContent objects to Python dictionaries:
+
+```python
+# Call the tool
+result = await server.server.call_tool("activate", {...})
+
+# Parse the response
+response = parse_response(result[0])
+
+# Access the response data
+if response["status"] == "success":
+    bank_info = response["bank_info"]
+```
+
+The Memory Bank handles this conversion internally, so clients interact with Python dictionaries rather than raw TextContent objects.

@@ -4,20 +4,26 @@
 # Create and activate virtual environment
 echo "Creating virtual environment..."
 rm -rf .venv
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
+
+# Verify virtual environment is active
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Failed to activate virtual environment. Exiting."
+    exit 1
+fi
 
 # Upgrade pip
 echo "Upgrading pip..."
-pip install --upgrade pip
+.venv/bin/pip install --upgrade pip
 
 # Install dependencies
 echo "Installing dependencies..."
-pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
 
 # Install the package in development mode
 echo "Installing package in development mode..."
-pip install -e .
+.venv/bin/pip install -e .
 
 echo "Installation complete. Activate the virtual environment with:"
 echo "source .venv/bin/activate"

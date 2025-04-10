@@ -10,7 +10,11 @@ import os
 import sys
 from pathlib import Path
 
+from .patches import apply_patches
 from .server import MemoryBankServer
+
+# Apply patches to third-party libraries
+apply_patches()
 
 # Configure logging
 logging.basicConfig(

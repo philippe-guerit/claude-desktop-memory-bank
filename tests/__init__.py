@@ -1,3 +1,3 @@
 """
-Tests for Claude Desktop Memory Bank.
+Test suite for Claude Desktop Memory Bank.
 """

@@ -177,6 +177,39 @@ For information on the architecture and implementation, see:
 - [Design Document](docs/design.md)
 - [API Reference](docs/api-reference.md)
 
+### Testing
+
+The project has a comprehensive test suite organized by component:
+
+```
+tests/
+├── conftest.py               # Shared fixtures and test utilities
+├── test_cache/               # Tests for cache optimization
+├── test_storage/             # Tests for storage components
+├── test_tools/               # Tests for MCP tool implementations
+├── test_utils/               # Tests for utility functions
+└── test_integration/         # Integration tests
+```
+
+To run the tests:
+
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage report
+pytest --cov=memory_bank
+
+# Run specific test categories
+pytest tests/test_storage/
+pytest tests/test_tools/
+```
+
+The project uses GitHub Actions for continuous integration:
+- Automated tests on multiple Python versions (3.8-3.12)
+- Code coverage reporting
+- Linting with flake8, black, and isort
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

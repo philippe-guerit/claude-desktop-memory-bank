@@ -7,8 +7,9 @@ This module provides the update tool for updating memory banks.
 from typing import Dict, Any, Optional
 import logging
 
-from mcp import MCPServer
-from mcp.errors import MCPError
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ update_schema = {
 }
 
 
-def register_update_tool(server: MCPServer, storage):
+def register_update_tool(server: FastMCP, storage):
     """Register the update tool with the MCP server.
     
     Args:
@@ -72,7 +73,7 @@ def register_update_tool(server: MCPServer, storage):
         id="update",
         description="Updates the memory bank with new information from the conversation",
         use_when="Significant new information is discussed that should be persisted",
-        parameters=update_schema
+        schema=update_schema
     )
     async def update(bank_type: str, bank_id: str, target_file: str, operation: str, content: str,
                      position: Optional[str] = None, trigger_type: Optional[str] = None,
@@ -99,16 +100,20 @@ def register_update_tool(server: MCPServer, storage):
             # Get memory bank
             bank = storage.get_bank(bank_type, bank_id)
             if not bank:
-                raise MCPError(
-                    code="bank_not_found",
-                    message=f"Memory bank not found: {bank_type}/{bank_id}"
+                raise McpError(
+                    ErrorData(
+                        code="bank_not_found",
+                        message=f"Memory bank not found: {bank_type}/{bank_id}"
+                    )
                 )
             
             # Validate operation
             if operation not in ["append", "replace", "insert"]:
-                raise MCPError(
-                    code="invalid_operation",
-                    message=f"Invalid operation: {operation}. Must be one of: append, replace, insert."
+                raise McpError(
+                    ErrorData(
+                        code="invalid_operation",
+                        message=f"Invalid operation: {operation}. Must be one of: append, replace, insert."
+                    )
                 )
             
             # Add context to content if extra metadata is provided
@@ -131,9 +136,11 @@ def register_update_tool(server: MCPServer, storage):
             # Update the file
             success = bank.update_file(target_file, content, operation, position)
             if not success:
-                raise MCPError(
-                    code="update_failed",
-                    message=f"Failed to update file: {target_file}"
+                raise McpError(
+                    ErrorData(
+                        code="update_failed",
+                        message=f"Failed to update file: {target_file}"
+                    )
                 )
             
             # Generate verification string
@@ -151,7 +158,9 @@ def register_update_tool(server: MCPServer, storage):
             
         except Exception as e:
             logger.error(f"Error updating memory bank: {e}")
-            raise MCPError(
-                code="update_failed",
-                message=f"Failed to update memory bank: {str(e)}"
+            raise McpError(
+                ErrorData(
+                    code="update_failed",
+                    message=f"Failed to update memory bank: {str(e)}"
+                )
             )

@@ -10,8 +10,9 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from mcp import MCPServer
-from mcp.errors import MCPError
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 from .tools.activate import register_activate_tool
 from .tools.list import register_list_tool
@@ -31,7 +32,7 @@ class MemoryBankServer:
         Args:
             storage_root: Path to the storage directory. If None, uses ~/.claude-desktop/memory/
         """
-        self.server = MCPServer(
+        self.server = FastMCP(
             name="Claude Desktop Memory Bank",
             version="2.0.0",
             description="MCP server for managing conversation context across sessions"

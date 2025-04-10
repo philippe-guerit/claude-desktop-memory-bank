@@ -7,8 +7,9 @@ This module provides the list tool for listing available memory banks.
 from typing import Dict, Any, Optional
 import logging
 
-from mcp import MCPServer
-from mcp.errors import MCPError
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ list_schema = {
 }
 
 
-def register_list_tool(server: MCPServer, storage):
+def register_list_tool(server: FastMCP, storage):
     """Register the list tool with the MCP server.
     
     Args:
@@ -37,7 +38,7 @@ def register_list_tool(server: MCPServer, storage):
         id="list",
         description="Lists all available memory banks by type",
         use_when="User wants to see available memory banks or choose which to use",
-        parameters=list_schema
+        schema=list_schema
     )
     async def list_banks(bank_type: Optional[str] = None) -> Dict[str, Any]:
         """List all available memory banks.
@@ -58,7 +59,9 @@ def register_list_tool(server: MCPServer, storage):
             
         except Exception as e:
             logger.error(f"Error listing memory banks: {e}")
-            raise MCPError(
-                code="list_failed",
-                message=f"Failed to list memory banks: {str(e)}"
+            raise McpError(
+                ErrorData(
+                    code="list_failed",
+                    message=f"Failed to list memory banks: {str(e)}"
+                )
             )

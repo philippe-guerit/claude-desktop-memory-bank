@@ -8,8 +8,9 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 import logging
 
-from mcp import MCPServer
-from mcp.errors import MCPError
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ activate_schema = {
 }
 
 
-def register_activate_tool(server: MCPServer, storage):
+def register_activate_tool(server: FastMCP, storage):
     """Register the activate tool with the MCP server.
     
     Args:
@@ -55,7 +56,7 @@ def register_activate_tool(server: MCPServer, storage):
         id="activate",
         description="Activates and loads a memory bank for the current conversation",
         use_when="At the beginning of a conversation to establish context",
-        parameters=activate_schema
+        schema=activate_schema
     )
     async def activate(bank_type: str, bank_id: str,
                        current_path: Optional[str] = None,
@@ -78,9 +79,11 @@ def register_activate_tool(server: MCPServer, storage):
         try:
             # Validate bank type
             if bank_type not in ["global", "project", "code"]:
-                raise MCPError(
-                    code="invalid_bank_type",
-                    message=f"Invalid bank type: {bank_type}. Must be one of: global, project, code."
+                raise McpError(
+                    ErrorData(
+                        code="invalid_bank_type",
+                        message=f"Invalid bank type: {bank_type}. Must be one of: global, project, code."
+                    )
                 )
             
             # Handle code bank with path detection
@@ -143,7 +146,9 @@ Key stakeholders and their roles.
             
         except Exception as e:
             logger.error(f"Error activating memory bank: {e}")
-            raise MCPError(
-                code="activation_failed",
-                message=f"Failed to activate memory bank: {str(e)}"
+            raise McpError(
+                ErrorData(
+                    code="activation_failed",
+                    message=f"Failed to activate memory bank: {str(e)}"
+                )
             )

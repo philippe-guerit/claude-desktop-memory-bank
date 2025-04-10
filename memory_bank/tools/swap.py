@@ -8,8 +8,9 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 import logging
 
-from mcp import MCPServer
-from mcp.errors import MCPError
+from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ swap_schema = {
 }
 
 
-def register_swap_tool(server: MCPServer, storage):
+def register_swap_tool(server: FastMCP, storage):
     """Register the swap tool with the MCP server.
     
     Args:
@@ -53,7 +54,7 @@ def register_swap_tool(server: MCPServer, storage):
         id="swap",
         description="Changes the current conversation to use a different memory bank",
         use_when="Conversation shifts focus to a different project or context",
-        parameters=swap_schema
+        schema=swap_schema
     )
     async def swap(bank_type: str, bank_id: str, temporary: bool = False,
                    merge_files: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -73,17 +74,21 @@ def register_swap_tool(server: MCPServer, storage):
         try:
             # Validate bank type
             if bank_type not in ["global", "project", "code"]:
-                raise MCPError(
-                    code="invalid_bank_type",
-                    message=f"Invalid bank type: {bank_type}. Must be one of: global, project, code."
+                raise McpError(
+                    ErrorData(
+                        code="invalid_bank_type",
+                        message=f"Invalid bank type: {bank_type}. Must be one of: global, project, code."
+                    )
                 )
             
             # Get memory bank
             bank = storage.get_bank(bank_type, bank_id)
             if not bank:
-                raise MCPError(
-                    code="bank_not_found",
-                    message=f"Memory bank not found: {bank_type}/{bank_id}"
+                raise McpError(
+                    ErrorData(
+                        code="bank_not_found",
+                        message=f"Memory bank not found: {bank_type}/{bank_id}"
+                    )
                 )
             
             # Load content based on merge_files if specified
@@ -128,7 +133,9 @@ def register_swap_tool(server: MCPServer, storage):
             
         except Exception as e:
             logger.error(f"Error swapping memory bank: {e}")
-            raise MCPError(
-                code="swap_failed",
-                message=f"Failed to swap memory bank: {str(e)}"
+            raise McpError(
+                ErrorData(
+                    code="swap_failed",
+                    message=f"Failed to swap memory bank: {str(e)}"
+                )
             )

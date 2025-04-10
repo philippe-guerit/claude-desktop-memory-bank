@@ -51,9 +51,9 @@ def register_swap_tool(server: FastMCP, storage):
     """
     
     @server.tool(
-        id="swap",
+        name="swap",
         description="Changes the current conversation to use a different memory bank",
-        use_when="Conversation shifts focus to a different project or context",
+        usage="Conversation shifts focus to a different project or context",
         schema=swap_schema
     )
     async def swap(bank_type: str, bank_id: str, temporary: bool = False,

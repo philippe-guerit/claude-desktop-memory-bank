@@ -52,8 +52,16 @@ class MemoryBankServer:
     
     async def start(self):
         """Start the MCP server."""
-        await self.server.start()
+        # FastMCP doesn't have a start() method, but it has run_stdio_async()
+        # Running in a separate task so we can return control to the caller
+        self._task = asyncio.create_task(self.server.run_stdio_async())
     
     async def stop(self):
         """Stop the MCP server."""
-        await self.server.stop()
+        # FastMCP doesn't have a stop() method, but we can cancel the task
+        if hasattr(self, '_task') and self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass

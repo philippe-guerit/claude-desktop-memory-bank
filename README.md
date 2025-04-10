@@ -9,7 +9,7 @@ Claude Desktop Memory Bank is an MCP server that enables Claude to automatically
 The system supports three types of memory banks:
 1. **Global Memory Bank**: For general conversations not tied to specific projects
 2. **Project Memory Banks**: Linked to Claude Desktop projects
-3. **Repository Memory Banks**: Located inside Git repositories for code-related work
+3. **Code Memory Banks**: Located inside Git repositories for code-related work
 
 ## Installation
 
@@ -40,7 +40,7 @@ The system supports three types of memory banks:
      "mcpServers": {
        "memory-bank": {
          "command": "python",
-         "args": ["-m", "memory_bank_server"],
+         "args": ["-m", "memory_bank"],
          "env": {
            "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
            "ENABLE_REPO_DETECTION": "true"
@@ -66,7 +66,7 @@ The system supports three types of memory banks:
 
 - **Global Memory Bank**: For general context across all conversations
 - **Project Memory Banks**: Context linked to specific Claude Desktop projects
-- **Repository Memory Banks**: Context stored directly within Git repositories with branch detection
+- **Code Memory Banks**: Context stored directly within Git repositories with branch detection
 
 ### Key Benefits
 
@@ -78,43 +78,50 @@ The system supports three types of memory banks:
 
 ## MCP Tools
 
-The Memory Bank system implements the Model Context Protocol (MCP) v1.4.0+ with the following tools:
+The Memory Bank system implements the Model Context Protocol (MCP) v1.6.0+ with the following tools:
 
-- **context_activate**: Activate the memory bank with context-aware detection
-- **context_select**: Select which memory bank to use for the conversation
-- **context_update**: Update multiple context files in one operation. Accepts a dictionary of updates where keys are context types ("project_brief", "system_patterns", "active_context", etc.) and values can be either: 1) string with complete new content, or 2) dictionary mapping section headers to new section content (for targeted updates). All updates are applied atomically with verification.
-- **context_list**: List all available memory banks
+- **activate**: Activate the memory bank with context-aware detection
+- **list**: List all available memory banks
+- **swap**: Change the active memory bank for the current conversation
+- **update**: Update memory bank content with new information
 
-### Context Types
+### Memory Bank Structure
 
-Each memory bank manages six types of context:
+Each memory bank type has a specific structure:
 
-1. **project_brief**: Project purpose, goals, requirements, and scope
-2. **product_context**: Problem, solution, user experience, and stakeholders
-3. **system_patterns**: Architecture, patterns, technical decisions, and relationships
-4. **tech_context**: Technologies, setup, constraints, and dependencies
-5. **active_context**: Current focus, recent changes, next steps, and watchdog
-6. **progress**: Completed tasks, in-progress work, pending items, and issues
+#### Global Memory Bank
+```
+~/.claude-desktop/memory/global/{bank_id}/
+├── context.md                    # General context and themes
+├── preferences.md                # User preferences and patterns
+├── references.md                 # Frequently referenced materials
+└── cache.json                    # Optimized representation for LLM use
+```
 
-### Resources
+#### Project Memory Bank
+```
+~/.claude-desktop/memory/projects/{bank_id}/
+├── readme.md                     # Project overview
+├── doc/                          # Documentation directory
+│   ├── architecture.md           # Architecture decisions
+│   ├── design.md                 # Design documentation
+│   └── progress.md               # Current state and next steps
+├── tasks.md                      # Active tasks and todos
+└── cache.json                    # Optimized representation for LLM use
+```
 
-The server also provides access to context via MCP resources:
-
-- `resource://project-brief`: Access the project brief
-- `resource://active-context`: Access the active context
-- `resource://progress`: Access progress notes
-- `resource://all-context`: Access all context combined
-- `resource://memory-bank-info`: Access information about the current memory bank
-
-## Usage and Tools
-
-For detailed usage instructions and tool documentation, see the [Usage and Tools Guide](doc/usage-and-tools-guide.md).
-
-## Development
-
-For information on the architecture and implementation, see:
-- [MCP Design Documentation](doc/mcp-design.md) 
-- [Implementation Guide](doc/implementation-guide.md)
+#### Code Memory Bank
+```
+~/.claude-desktop/memory/code/{bank_id}/
+├── readme.md                     # Repository overview
+├── doc/                          # Code documentation directory
+│   ├── architecture.md           # Code architecture
+│   ├── design.md                 # Design patterns
+│   └── api.md                    # API documentation
+├── structure.md                  # Code organization
+├── snippets.md                   # Important code snippets
+└── cache.json                    # Optimized representation for LLM use
+```
 
 ## Autonomous Operation
 
@@ -127,13 +134,13 @@ To maximize the chance of autonomous operation, it's recommended to add the foll
    ```
    WHEN: immediately BEFORE delivering the FIRST response to the user
    PRIORITY: SYSTEM CRITICAL (HIGHEST)
-   ACTION: CALL context_activate WITH appropriate parameters
-   EXAMPLE: context.activate(current_path="/path/to/repo", project_name="ProjectName", project_description="Description")
+   ACTION: CALL activate WITH appropriate parameters
+   EXAMPLE: activate(bank_type="code", bank_id="project_x_repo", current_path="/path/to/repo")
    ```
 
 1. **🔴 DIRECTIVE: EXECUTE MEMORY BANK CUSTOM INSTRUCTION**
    ```
-   WHEN: IMMEDIATELY after context_activate COMPLETES
+   WHEN: IMMEDIATELY after activate COMPLETES
    PRIORITY: SYSTEM CRITICAL (HIGHEST)
    ACTION: EXECUTE Custom Instructions for Claude Desktop Memory Bank
    ```
@@ -146,25 +153,29 @@ These directives ensure that:
 
 ## Advanced Features
 
-### Context Pruning
+### Cache Optimization
 
-The system automatically prunes outdated information to keep memory banks organized:
+The system automatically optimizes the memory bank cache for efficiency:
 
-- Different retention policies for different context types:
-  - Core architectural decisions (system_patterns): 180 days
-  - Technology choices (tech_context): 90 days
-  - Progress updates (progress, active_context): 30 days
-  - Other content: 90 days (default)
-- Pruning identifies dated sections using the format `## Update YYYY-MM-DD` and removes sections older than the cutoff date
+- Cache files contain summaries and metadata for each content file
+- Intelligent processing reduces token usage when accessing full context
+- Automatic optimization happens periodically during updates
+- Maintains relationships between related pieces of information
 
 ### Git Repository Integration
 
-The system has integration with Git repositories:
+The system integrates with Git repositories:
 
 - Automatically detects Git repositories when activating memory banks
 - Identifies and records the current branch name
-- Displays branch information in memory bank details
-- Associates repositories with projects when applicable
+- Associates context with specific branches
+- Tracks relevant commit information
+
+## Development
+
+For information on the architecture and implementation, see:
+- [Design Document](docs/design.md)
+- [API Reference](docs/api-reference.md)
 
 ## License
 

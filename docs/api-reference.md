@@ -1,0 +1,375 @@
+# Claude Desktop Memory Bank API Reference
+
+This document provides a detailed reference for the Model Context Protocol (MCP) tools exposed by the Claude Desktop Memory Bank.
+
+## MCP Tools
+
+The Memory Bank implements four main tools:
+
+1. [activate](#activate): Activate a memory bank at conversation start
+2. [list](#list): List available memory banks
+3. [swap](#swap): Change the active memory bank
+4. [update](#update): Update memory bank content
+
+## Tool Reference
+
+### `activate`
+
+Activates and loads a memory bank for the current conversation.
+
+#### Parameters
+
+| Name | Type | Required | Description |
+| ---- | ---- | -------- | ----------- |
+| `bank_type` | string | Yes | Type of memory bank to activate (`"global"`, `"project"`, or `"code"`) |
+| `bank_id` | string | Yes | Identifier for the specific memory bank instance (use `"auto"` for automatic detection) |
+| `current_path` | string | No | Current path for code context detection |
+| `project_name` | string | No | Project name for creating new projects |
+| `project_description` | string | No | Project description for creating new projects |
+
+#### Returns
+
+```json
+{
+  "status": "success",
+  "bank_info": {
+    "type": "code",
+    "id": "my-repo",
+    "files": [
+      "readme.md",
+      "doc/architecture.md",
+      "doc/design.md",
+      "doc/api.md",
+      "structure.md",
+      "snippets.md"
+    ],
+    "last_updated": "2025-04-09T15:30:22Z"
+  },
+  "content": {
+    "readme.md": "# My Repository\n\n## Repository Overview\nA brief description of the codebase.\n\n...",
+    "doc/architecture.md": "# Code Architecture\n\n## Architecture Overview\nOverview of the code architecture.\n\n...",
+    "doc/design.md": "# Design\n\n## Design Principles\nCore design principles for the codebase.\n\n...",
+    "doc/api.md": "# API Documentation\n\n## Public API\nDocumentation for the public API.\n\n...",
+    "structure.md": "# Code Structure\n\n## Directory Structure\nOverview of the directory structure.\n\n...",
+    "snippets.md": "# Code Snippets\n\n## Important Snippets\nCode snippets that are important to remember.\n\n..."
+  },
+  "custom_instructions": {
+    "directives": [
+      {
+        "name": "WATCHDOG",
+        "priority": "SYSTEM CRITICAL",
+        "when": "After every response",
+        "action": "Call update tool"
+      },
+      {
+        "name": "CODE_ARCHITECTURE_UPDATE",
+        "priority": "HIGH",
+        "when": "User discusses code architecture or design decisions",
+        "action": "CALL update with target_file='doc/architecture.md'"
+      },
+      {
+        "name": "API_UPDATE",
+        "priority": "HIGH",
+        "when": "User discusses API design or usage",
+        "action": "CALL update with target_file='doc/api.md'"
+      },
+      {
+        "name": "SNIPPET_CAPTURE",
+        "priority": "MEDIUM",
+        "when": "User shares important code patterns or examples",
+        "action": "CALL update with target_file='snippets.md'"
+      }
+    ],
+    "prompts": [
+      {
+        "id": "code_default",
+        "text": "You're a coding assistant with access to the code memory bank for \"my-repo\".\nUse this context to discuss code architecture, design patterns, API usage, and implementation details.\n\nThis repository is currently on branch: main\n\nPay special attention to architecture decisions, design patterns, and API usage.\nUpdate the memory bank when you observe important context that should persist\nacross conversations about this codebase."
+      }
+    ],
+    "examples": {
+      "trigger_patterns": [
+        "We decided to use [technology]",
+        "We're implementing [pattern]",
+        "The architecture will be [description]",
+        "I've completed [task]",
+        "Next, we need to [task]"
+      ],
+      "verification": "// Update #[N] for conversation [id]"
+    }
+  }
+}
+```
+
+#### Usage Examples
+
+Basic activation:
+```javascript
+activate(bank_type="global", bank_id="default")
+```
+
+Activating code bank with automatic repository detection:
+```javascript
+activate(bank_type="code", bank_id="auto", current_path="/path/to/repo")
+```
+
+Creating a new project:
+```javascript
+activate(bank_type="project", bank_id="my-project", project_name="My Project", project_description="A project to develop a new feature.")
+```
+
+### `list`
+
+Lists all available memory banks.
+
+#### Parameters
+
+| Name | Type | Required | Description |
+| ---- | ---- | -------- | ----------- |
+| `bank_type` | string | No | Optional type filter (`"global"`, `"project"`, or `"code"`) |
+
+#### Returns
+
+```json
+{
+  "global": [
+    {
+      "id": "default",
+      "last_used": "2025-04-08T10:20:30Z",
+      "description": "Global conversation memory"
+    }
+  ],
+  "projects": [
+    {
+      "id": "project_x",
+      "last_used": "2025-04-09T15:30:22Z",
+      "description": "Project X development"
+    },
+    {
+      "id": "project_y",
+      "last_used": "2025-04-07T11:45:15Z",
+      "description": "Project Y planning"
+    }
+  ],
+  "code": [
+    {
+      "id": "project_x_repo",
+      "last_used": "2025-04-09T16:45:10Z",
+      "description": "Project X codebase"
+    },
+    {
+      "id": "utils_lib",
+      "last_used": "2025-04-05T09:30:00Z",
+      "description": "Utilities library"
+    }
+  ]
+}
+```
+
+#### Usage Examples
+
+List all memory banks:
+```javascript
+list()
+```
+
+List only project memory banks:
+```javascript
+list(bank_type="project")
+```
+
+### `swap`
+
+Changes the active memory bank for the current conversation.
+
+#### Parameters
+
+| Name | Type | Required | Description |
+| ---- | ---- | -------- | ----------- |
+| `bank_type` | string | Yes | Type of memory bank to swap to (`"global"`, `"project"`, or `"code"`) |
+| `bank_id` | string | Yes | Identifier for the specific memory bank to swap to |
+| `temporary` | boolean | No | If true, don't update this memory bank during session (default: false) |
+| `merge_files` | array of strings | No | Optional list of specific files to import rather than full bank |
+
+#### Returns
+
+Same as `activate`.
+
+#### Usage Examples
+
+Swap to a project memory bank:
+```javascript
+swap(bank_type="project", bank_id="project_y")
+```
+
+Temporarily swap to a code memory bank (read-only):
+```javascript
+swap(bank_type="code", bank_id="utils_lib", temporary=true)
+```
+
+Swap to a code memory bank with specific files:
+```javascript
+swap(bank_type="code", bank_id="project_x_repo", merge_files=["doc/api.md", "snippets.md"])
+```
+
+### `update`
+
+Updates the memory bank with new information from the conversation.
+
+#### Parameters
+
+| Name | Type | Required | Description |
+| ---- | ---- | -------- | ----------- |
+| `bank_type` | string | Yes | Type of memory bank to update (`"global"`, `"project"`, or `"code"`) |
+| `bank_id` | string | Yes | Identifier for the specific memory bank to update |
+| `target_file` | string | Yes | Specific file to update (e.g., `"doc/design.md"`) |
+| `operation` | string | Yes | How to apply the update (`"append"`, `"replace"`, or `"insert"`) |
+| `content` | string | Yes | Content to add to the memory bank |
+| `position` | string | No | Position identifier for insert operations (e.g., section name) |
+| `trigger_type` | string | No | What triggered this update (`"watchdog"`, `"architecture"`, `"technology"`, `"progress"`, `"commit"`, or `"user_request"`) |
+| `conversation_id` | string | No | Identifier for the current conversation |
+| `update_count` | integer | No | Counter for updates in this conversation |
+
+#### Returns
+
+```json
+{
+  "status": "success",
+  "updated_file": "doc/architecture.md",
+  "operation": "append",
+  "cache_updated": true,
+  "cache_optimized": false,
+  "verification": "// Update #3 for conversation conv-123",
+  "next_actions": []
+}
+```
+
+#### Usage Examples
+
+Append new content to a file:
+```javascript
+update(
+  bank_type="project",
+  bank_id="project_x",
+  target_file="doc/architecture.md",
+  operation="append",
+  content="## New Component\n\nThis component will handle authentication using OAuth2.",
+  trigger_type="architecture",
+  conversation_id="conv-123",
+  update_count=3
+)
+```
+
+Replace content in a file:
+```javascript
+update(
+  bank_type="code",
+  bank_id="project_x_repo",
+  target_file="doc/api.md",
+  operation="replace",
+  content="# API Documentation\n\n## Authentication API\n\nThe authentication API uses JWT tokens.",
+  trigger_type="user_request"
+)
+```
+
+Insert content at a specific position in a file:
+```javascript
+update(
+  bank_type="global",
+  bank_id="default",
+  target_file="preferences.md",
+  operation="insert",
+  content="The user prefers detailed explanations with code examples.",
+  position="Communication Style",
+  trigger_type="watchdog"
+)
+```
+
+## Custom Instructions
+
+The Memory Bank provides custom instructions through the `activate` and `swap` tools. These instructions help guide the assistant in using the memory bank effectively.
+
+### Directive Structure
+
+```json
+{
+  "name": "DIRECTIVE_NAME",
+  "priority": "PRIORITY_LEVEL",
+  "when": "TRIGGER_CONDITION",
+  "action": "ACTION_TO_PERFORM",
+  "patterns": ["PATTERN1", "PATTERN2"]
+}
+```
+
+### Priority Levels
+
+- `"SYSTEM CRITICAL"`: Highest priority, must be executed
+- `"HIGH"`: Important directive that should be executed when detected
+- `"MEDIUM"`: Moderate priority, execute when appropriate
+- `"LOW"`: Lowest priority, execute when convenient
+
+### Common Directives
+
+1. **WATCHDOG**: Monitors for updates after each response
+2. **ARCHITECTURE_TRACKING**: Tracks architecture decisions
+3. **DESIGN_TRACKING**: Tracks design patterns and implementation details
+4. **PROGRESS_TRACKING**: Tracks completed work and next steps
+5. **GIT_COMMIT**: Captures information during commit preparation
+
+## File Structure
+
+Each memory bank type has a specific structure:
+
+### Global Memory Bank
+
+- `context.md`: General context and themes
+- `preferences.md`: User preferences and patterns
+- `references.md`: Frequently referenced materials
+- `cache.json`: Optimized representation for LLM use
+
+### Project Memory Bank
+
+- `readme.md`: Project overview
+- `doc/architecture.md`: Architecture decisions
+- `doc/design.md`: Design documentation
+- `doc/progress.md`: Current state and next steps
+- `tasks.md`: Active tasks and todos
+- `cache.json`: Optimized representation for LLM use
+
+### Code Memory Bank
+
+- `readme.md`: Repository overview
+- `doc/architecture.md`: Code architecture
+- `doc/design.md`: Design patterns
+- `doc/api.md`: API documentation
+- `structure.md`: Code organization
+- `snippets.md`: Important code snippets
+- `cache.json`: Optimized representation for LLM use
+
+## Error Handling
+
+The server returns standard MCP error responses:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32603,
+    "message": "Error message",
+    "data": {
+      "code": "error_code",
+      "details": "Additional error details"
+    }
+  },
+  "id": "request_id"
+}
+```
+
+### Common Error Codes
+
+- `"invalid_bank_type"`: Invalid bank type
+- `"bank_not_found"`: Memory bank not found
+- `"activation_failed"`: Failed to activate memory bank
+- `"list_failed"`: Failed to list memory banks
+- `"swap_failed"`: Failed to swap memory bank
+- `"update_failed"`: Failed to update memory bank
+- `"invalid_operation"`: Invalid update operation

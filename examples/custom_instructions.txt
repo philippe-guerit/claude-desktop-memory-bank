@@ -1,0 +1,49 @@
+# Custom Instructions for Claude Desktop Memory Bank
+
+## 🔴 SYSTEM CRITICAL COMMAND DIRECTIVES
+
+0. **🔴 WATCHDOG DIRECTIVE: UPDATE AFTER EACH RESPONSE**
+   ```
+   WHEN: IMMEDIATELY after EVERY response delivery 
+   PRIORITY: SYSTEM CRITICAL (HIGHEST)
+   ACTION: CALL update WITH appropriate parameters based on the conversation
+   ```
+
+1. **🔴 ARCHITECTURE TRACKING DIRECTIVE**
+   ```
+   WHEN: User discussions include architecture decisions or technology choices
+   PRIORITY: HIGH
+   ACTION: CALL update WITH target_file="doc/architecture.md" and appropriate content
+   PATTERNS: ["decided to use", "implement pattern", "architecture will be"]
+   ```
+
+2. **🔴 DESIGN TRACKING DIRECTIVE**
+   ```
+   WHEN: User discussions include design patterns or implementation details
+   PRIORITY: HIGH
+   ACTION: CALL update WITH target_file="doc/design.md" and appropriate content
+   PATTERNS: ["design pattern", "implementation approach", "organized as"]
+   ```
+
+3. **🔴 PROGRESS TRACKING DIRECTIVE**
+   ```
+   WHEN: User reports completed work or next steps
+   PRIORITY: MEDIUM
+   ACTION: CALL update WITH target_file="progress.md" and appropriate content
+   PATTERNS: ["completed", "next steps", "working on", "finished"]
+   ```
+
+4. **🔴 GIT COMMIT DIRECTIVE**
+   ```
+   WHEN: User is preparing to commit code changes
+   PRIORITY: HIGH
+   ACTION: CALL update WITH target_file="snippets.md" and appropriate content
+   PATTERNS: ["commit message", "changes I made", "ready to commit"]
+   ```
+
+## VERIFICATION MECHANISM
+
+After each update operation, verify the update was successful by checking for:
+// Update #[N] for conversation [id]
+
+This pattern confirms the memory bank was properly updated.

@@ -144,12 +144,44 @@ def register_update_tool(server: FastMCP, storage):
             # Generate verification string
             verification = f"// Update #{update_count or 'N/A'} for conversation {conversation_id or 'unknown'}"
             
+            # Determine if we should perform LLM optimization on this update
+            cache_optimized = False
+            optimize_with_llm = False
+            
+            # Optimization triggers
+            if trigger_type in ["architecture", "technology", "progress"]:
+                # Important updates should trigger LLM optimization
+                optimize_with_llm = True
+                logger.info(f"Triggering LLM optimization due to {trigger_type} update")
+            elif update_count and update_count % 5 == 0:
+                # Periodic optimization every 5 updates
+                optimize_with_llm = True
+                logger.info("Triggering periodic LLM optimization")
+                
+            # Perform optimization if needed
+            if optimize_with_llm:
+                # Get all content for optimization
+                all_content = bank.load_all_content()
+                
+                # Get bank type
+                bank_type = bank.__class__.__name__.replace("MemoryBank", "").lower()
+                
+                # Import here to avoid circular imports
+                from memory_bank.cache.optimizer import optimize_cache
+                cache_optimized = optimize_cache(bank.root_path, all_content, bank_type, force_llm=True)
+                
+                if cache_optimized:
+                    logger.info(f"Successfully optimized cache for {bank_type}/{bank.bank_id}")
+                else:
+                    logger.warning(f"Failed to optimize cache for {bank_type}/{bank.bank_id}")
+            
             return {
                 "status": "success",
                 "updated_file": target_file,
                 "operation": operation,
                 "cache_updated": True,
-                "cache_optimized": False,  # Cache optimization would be done periodically, not every update
+                "cache_optimized": cache_optimized,
+                "trigger_type": trigger_type,
                 "verification": verification,
                 "next_actions": []
             }

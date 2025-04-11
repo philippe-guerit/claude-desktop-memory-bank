@@ -100,7 +100,7 @@ def register_update_tool(server: FastMCP, storage):
             if not bank:
                 raise McpError(
                     ErrorData(
-                        code="bank_not_found",
+                        code=404,  # Not Found
                         message=f"Memory bank not found: {bank_type}/{bank_id}"
                     )
                 )
@@ -109,7 +109,7 @@ def register_update_tool(server: FastMCP, storage):
             if operation not in ["append", "replace", "insert"]:
                 raise McpError(
                     ErrorData(
-                        code="invalid_operation",
+                        code=400,  # Bad Request
                         message=f"Invalid operation: {operation}. Must be one of: append, replace, insert."
                     )
                 )
@@ -136,7 +136,7 @@ def register_update_tool(server: FastMCP, storage):
             if not success:
                 raise McpError(
                     ErrorData(
-                        code="update_failed",
+                        code=500,  # Internal Server Error
                         message=f"Failed to update file: {target_file}"
                     )
                 )
@@ -168,9 +168,9 @@ def register_update_tool(server: FastMCP, storage):
                 
                 # Import here to avoid circular imports
                 from memory_bank.cache.optimizer import optimize_cache
-                cache_optimized = optimize_cache(bank.root_path, all_content, bank_type, force_llm=True)
+                result, messages = optimize_cache(bank.root_path, all_content, bank_type, optimization_preference="llm")
                 
-                if cache_optimized:
+                if result:
                     logger.info(f"Successfully optimized cache for {bank_type}/{bank.bank_id}")
                 else:
                     logger.warning(f"Failed to optimize cache for {bank_type}/{bank.bank_id}")
@@ -190,7 +190,7 @@ def register_update_tool(server: FastMCP, storage):
             logger.error(f"Error updating memory bank: {e}")
             raise McpError(
                 ErrorData(
-                    code="update_failed",
+                    code=500,  # Internal Server Error
                     message=f"Failed to update memory bank: {str(e)}"
                 )
             )

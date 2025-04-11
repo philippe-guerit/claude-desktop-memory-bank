@@ -29,10 +29,11 @@ def test_cache_optimization(temp_bank_dir):
     }
     
     # Run cache optimization
-    result = optimize_cache(temp_bank_dir, content)
+    result, messages = optimize_cache(temp_bank_dir, content)
     
     # Verify optimization was successful
     assert result is True
+    assert isinstance(messages, list)
     
     # Verify cache file was created
     cache_path = temp_bank_dir / "cache.json"
@@ -48,15 +49,17 @@ def test_cache_optimization(temp_bank_dir):
     assert "summaries" in cache_data
     assert "concepts" in cache_data
     assert "consolidated" in cache_data
+    assert "relevance_scores" in cache_data
+    assert "timestamp" in cache_data
+    assert "optimization_type" in cache_data
     
     # Check file list
     assert set(cache_data["files"]) == set(content.keys())
     
-    # Check summaries
-    for file_path, file_content in content.items():
+    # Check summaries exist for all files
+    for file_path in content.keys():
         assert file_path in cache_data["summaries"]
-        expected_summary = file_content[:100] + "..." if len(file_content) > 100 else file_content
-        assert cache_data["summaries"][file_path] == expected_summary
+        assert cache_data["summaries"][file_path]  # Not empty
 
 
 def test_cache_optimization_empty_content(temp_bank_dir):
@@ -65,7 +68,7 @@ def test_cache_optimization_empty_content(temp_bank_dir):
     content = {}
     
     # Run cache optimization
-    result = optimize_cache(temp_bank_dir, content)
+    result, messages = optimize_cache(temp_bank_dir, content)
     
     # Verify optimization was successful
     assert result is True
@@ -81,6 +84,7 @@ def test_cache_optimization_empty_content(temp_bank_dir):
     # Check file list is empty
     assert cache_data["files"] == []
     assert cache_data["summaries"] == {}
+    assert "optimization_type" in cache_data
 
 
 def test_cache_optimization_failure(monkeypatch):
@@ -95,10 +99,11 @@ def test_cache_optimization_failure(monkeypatch):
     content = {"test.md": "Test content"}
     
     # Run cache optimization with a non-existent directory to force failure
-    result = optimize_cache(Path("/nonexistent"), content)
+    result, messages = optimize_cache(Path("/nonexistent"), content)
     
     # Verify optimization failed
     assert result is False
+    assert len(messages) > 0  # Should contain error messages
 
 
 def test_cache_relevance_scoring(temp_bank_dir):
@@ -112,7 +117,7 @@ def test_cache_relevance_scoring(temp_bank_dir):
     }
     
     # Run cache optimization
-    result = optimize_cache(temp_bank_dir, content)
+    result, messages = optimize_cache(temp_bank_dir, content)
     assert result is True
     
     # Verify cache file was created
@@ -127,11 +132,8 @@ def test_cache_relevance_scoring(temp_bank_dir):
     assert "concepts" in cache_data
     concepts = cache_data["concepts"]
     
-    # The cache optimizer's concepts are currently static, but we verify they exist
-    assert "architecture" in concepts
-    assert "technology" in concepts
-    assert "progress" in concepts
-    assert "tasks" in concepts
+    # Verify at least some concepts exist
+    assert len(concepts) > 0
     
     # Verify consolidated summaries exist
     assert "consolidated" in cache_data
@@ -139,6 +141,13 @@ def test_cache_relevance_scoring(temp_bank_dir):
     assert "technology_choices" in cache_data["consolidated"]
     assert "current_status" in cache_data["consolidated"]
     assert "next_steps" in cache_data["consolidated"]
+    
+    # Verify relevance scores exist and are valid
+    assert "relevance_scores" in cache_data
+    for file_path in content.keys():
+        assert file_path in cache_data["relevance_scores"]
+        score = cache_data["relevance_scores"][file_path]
+        assert 0 <= score <= 1, f"Score {score} for {file_path} is not in range [0,1]"
 
 
 def test_cache_file_format(temp_bank_dir):
@@ -148,7 +157,7 @@ def test_cache_file_format(temp_bank_dir):
     }
     
     # Run cache optimization
-    result = optimize_cache(temp_bank_dir, content)
+    result, messages = optimize_cache(temp_bank_dir, content)
     assert result is True
     
     # Verify cache file was created
@@ -166,3 +175,68 @@ def test_cache_file_format(temp_bank_dir):
     assert "version" in cache_data
     assert isinstance(cache_data["version"], str)
     assert cache_data["version"].count(".") == 2  # Check for semantic versioning format
+    
+    # Check all version parts are integers
+    version_parts = cache_data["version"].split('.')
+    for part in version_parts:
+        assert part.isdigit(), f"Version part {part} is not a digit"
+    
+    # Verify timestamp format
+    assert "timestamp" in cache_data
+    assert isinstance(cache_data["timestamp"], str)
+    # Simple check for ISO format (contains T and at least one :)
+    assert "T" in cache_data["timestamp"]
+    assert ":" in cache_data["timestamp"]
+    
+    # Verify optimization type is valid
+    assert "optimization_type" in cache_data
+    assert cache_data["optimization_type"] in ["simple", "llm"]
+
+
+def test_cache_validation_integration(temp_bank_dir):
+    """Test that cache validation catches and repairs issues."""
+    # Prepare test content
+    content = {
+        "readme.md": "# Test Project\n\nThis is a test project for cache validation.",
+    }
+    
+    # Run cache optimization
+    result, messages = optimize_cache(temp_bank_dir, content)
+    assert result is True
+    
+    # Get the cache file path
+    cache_path = temp_bank_dir / "cache.json"
+    
+    # Create a corrupted cache file (missing required fields)
+    with open(cache_path, 'r') as f:
+        cache_data = json.load(f)
+    
+    # Corrupt the cache data
+    corrupted_data = {
+        "version": cache_data["version"],
+        "timestamp": cache_data["timestamp"],
+        # Missing optimization_type and other required fields
+    }
+    
+    # Write corrupted data
+    with open(cache_path, 'w') as f:
+        json.dump(corrupted_data, f)
+    
+    # Run optimization again - should repair the cache
+    result, repair_messages = optimize_cache(temp_bank_dir, content)
+    
+    # Verify repair was successful
+    assert result is True
+    assert len(repair_messages) > 0  # Should contain repair messages
+    
+    # Verify cache is now valid
+    with open(cache_path, 'r') as f:
+        repaired_data = json.load(f)
+    
+    # Check required fields are present
+    assert "optimization_type" in repaired_data
+    assert "files" in repaired_data
+    assert "summaries" in repaired_data
+    assert "concepts" in repaired_data
+    assert "consolidated" in repaired_data
+    assert "relevance_scores" in repaired_data

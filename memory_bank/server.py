@@ -51,12 +51,11 @@ class MemoryBankServer:
         logger.info(f"Memory Bank Server initialized with storage at {self.storage_root}")
     
     async def start(self):
-        """Start the MCP server."""
-        # For testing purposes, we don't actually start the server
-        # This way we can call tools directly without issues with stdin/stdout
-        pass
+        """Start the MCP server using stdio transport."""
+        logger.info("Starting Memory Bank MCP Server using stdio transport...")
+        await self.server.run_stdio_async()
     
     async def stop(self):
         """Stop the MCP server."""
-        # Nothing to stop since we don't start the server in tests
-        pass
+        logger.info("Stopping Memory Bank MCP Server...")
+        # Currently no additional cleanup needed

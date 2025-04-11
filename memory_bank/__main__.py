@@ -41,12 +41,8 @@ async def main():
     server = MemoryBankServer(storage_root=storage_root)
     
     try:
-        # Start server
+        # Start server - this will block until terminated
         await server.start()
-        
-        # Keep running until interrupted
-        while True:
-            await asyncio.sleep(1)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received, shutting down...")
     except Exception as e:

@@ -27,20 +27,32 @@ The system supports three types of memory banks:
    cd claude-desktop-memory-bank
    ```
 
-2. **Install the memory bank server**:
+2. **Create and activate a virtual environment**:
+   ```bash
+   python -m venv .venv
+   # On Linux/macOS
+   source .venv/bin/activate
+   # On Windows
+   .venv\Scripts\activate
+   ```
+
+3. **Install the memory bank server**:
    ```bash
    pip install -e .
    ```
 
-3. **Configure Claude Desktop**:
+4. **Configure Claude Desktop**:
    
-   Locate the Claude Desktop configuration file and add the memory bank server configuration:
+   Locate the Claude Desktop configuration file and add the memory bank server configuration. You can use either the module directly or the wrapper script:
+
+   **Option 1: Using the module directly**:
    ```json
    {
      "mcpServers": {
        "memory-bank": {
-         "command": "python",
+         "command": "python3",
          "args": ["-m", "memory_bank"],
+         "cwd": "/path/to/claude-desktop-memory-bank",
          "env": {
            "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
            "ENABLE_REPO_DETECTION": "true"
@@ -50,7 +62,111 @@ The system supports three types of memory banks:
    }
    ```
 
-4. **Restart Claude Desktop**
+   **Option 2: Using the wrapper script**:
+   ```json
+   {
+     "mcpServers": {
+       "memory-bank": {
+         "command": "python3",
+         "args": ["run_server.py"],
+         "cwd": "/path/to/claude-desktop-memory-bank",
+         "env": {
+           "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
+           "ENABLE_REPO_DETECTION": "true"
+         }
+       }
+     }
+   }
+   ```
+   Make sure to adjust the paths according to your setup.
+
+5. **(Optional) Customize the wrapper script**:
+   The repository already includes a `run_server.py` wrapper script that's ready to use. If you need to customize it, you can modify it to suit your needs. The existing wrapper looks like this:
+   
+   ```python
+   #!/usr/bin/env python3
+   """
+   Wrapper script for the Claude Desktop Memory Bank MCP server.
+   This exposes the server for use with the MCP Inspector tool.
+   """
+
+   import asyncio
+   import logging
+   import sys
+   from pathlib import Path
+   from memory_bank.server import MemoryBankServer
+
+   # Configure logging
+   logging.basicConfig(
+       level=logging.INFO,
+       format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+       handlers=[logging.StreamHandler(sys.stdout)]
+   )
+
+   logger = logging.getLogger(__name__)
+
+   async def main():
+       logger.info("Starting run_server.py wrapper...")
+       
+       # Create and configure the server
+       storage_root = Path.home() / ".claude-desktop" / "memory"
+       
+       # Override storage root from environment variable if set
+       import os
+       storage_root_env = os.environ.get("MEMORY_BANK_ROOT")
+       if storage_root_env:
+           storage_root = Path(storage_root_env)
+       
+       logger.info(f"Using storage root: {storage_root}")
+       
+       # Create server
+       mcp_server = MemoryBankServer(storage_root=storage_root)
+       
+       # Start the server
+       logger.info("Starting server...")
+       await mcp_server.start()
+
+   if __name__ == "__main__":
+       asyncio.run(main())
+   ```
+
+6. **Make the wrapper executable** (if using the wrapper script):
+   ```bash
+   chmod +x run_server.py
+   ```
+
+7. **Restart Claude Desktop**
+
+## Using the MCP Inspector
+
+For development and testing, you can use the MCP Inspector to interact with the server:
+
+```bash
+# Install the MCP Inspector
+npm install -g @modelcontextprotocol/inspector
+
+# Run the server with the inspector using the wrapper script
+npx @modelcontextprotocol/inspector python3 run_server.py
+
+# Or run using the module directly
+npx @modelcontextprotocol/inspector python3 -m memory_bank
+```
+
+This will launch a web interface at http://127.0.0.1:6274 where you can test the MCP tools.
+
+## Running the Server Directly
+
+You can also run the server directly without the MCP Inspector:
+
+```bash
+# Using the wrapper script
+python3 run_server.py
+
+# Or using the module directly
+python3 -m memory_bank
+```
+
+Both methods work identically and provide the same functionality.
 
 ## Features
 

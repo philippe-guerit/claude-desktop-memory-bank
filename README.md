@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server that provides autonomous memory persistence for Claude Desktop.
 
+**Version 2.0.0** - Updated April 2025
+
 ## What is Claude Desktop Memory Bank?
 
 Claude Desktop Memory Bank is an MCP server that enables Claude to automatically maintain context and memory across sessions. It works as an auxiliary memory system that stores and organizes important information without requiring manual management by users.
@@ -196,10 +198,10 @@ Both methods work identically and provide the same functionality.
 
 The Memory Bank system implements the Model Context Protocol (MCP) v1.6.0+ with the following tools:
 
-- **activate**: Activate the memory bank with context-aware detection
-- **list**: List all available memory banks
-- **swap**: Change the active memory bank for the current conversation
-- **update**: Update memory bank content with new information
+- **activate**: Initializes and loads the appropriate memory bank at conversation start, with context-aware detection. Returns both context data and custom instructions.
+- **list**: Lists all available memory banks of each type (global, project, code).
+- **swap**: Changes the active memory bank for the current conversation, with options for temporary access or partial merging.
+- **update**: Updates memory bank content with new information, supporting targeted file updates and different operation types.
 
 ### Memory Bank Structure
 
@@ -251,7 +253,7 @@ To maximize the chance of autonomous operation, it's recommended to add the foll
    WHEN: immediately BEFORE delivering the FIRST response to the user
    PRIORITY: SYSTEM CRITICAL (HIGHEST)
    ACTION: CALL activate WITH appropriate parameters
-   EXAMPLE: activate(bank_type="code", bank_id="project_x_repo", current_path="/path/to/repo")
+   EXAMPLE: activate(bank_type="code", bank_id="project_x_repo")
    ```
 
 1. **🔴 DIRECTIVE: EXECUTE MEMORY BANK CUSTOM INSTRUCTION**
@@ -259,6 +261,13 @@ To maximize the chance of autonomous operation, it's recommended to add the foll
    WHEN: IMMEDIATELY after activate COMPLETES
    PRIORITY: SYSTEM CRITICAL (HIGHEST)
    ACTION: EXECUTE Custom Instructions for Claude Desktop Memory Bank
+   ```
+
+2. **🔴 WATCHDOG DIRECTIVE: UPDATE AFTER EACH RESPONSE**
+   ```
+   WHEN: IMMEDIATELY after EVERY response delivery 
+   PRIORITY: SYSTEM CRITICAL (HIGHEST)
+   ACTION: CALL update WITH appropriate parameters when relevant changes detected
    ```
 ```
 
@@ -269,14 +278,26 @@ These directives ensure that:
 
 ## Advanced Features
 
+### Protocol Optimization
+
+The Memory Bank server implements a key optimization in the MCP protocol:
+
+- **Tools-Only Approach**: Server only registers tools through the MCP protocol (activate, list, swap, update)
+- **Prompt and Resource Delivery**: Prompts and resources delivered directly through the `activate` tool response
+- **Simplified Implementation**: Reduced protocol overhead and flexible formatting of custom instructions
+- **Single Delivery Mechanism**: Context data and custom instructions provided in a single response
+
 ### Cache Optimization
 
 The system automatically optimizes the memory bank cache for efficiency:
 
-- Cache files contain summaries and metadata for each content file
-- Intelligent processing reduces token usage when accessing full context
-- Automatic optimization happens periodically during updates
-- Maintains relationships between related pieces of information
+- **Intelligent Cache Storage**: Cache files contain compressed/optimized version of the entire memory bank
+- **Token Optimization**: Intelligent processing reduces token usage when accessing full context
+- **Automatic Optimization**: Cache is periodically optimized during updates using LLM processing
+- **Relationship Tracking**: Maintains connections between related pieces of information
+- **Inference-Based Updates**: Server analyzes partial updates to infer what needs to be updated elsewhere
+- **Smart Content Integration**: Server handles updates affecting multiple contexts automatically
+- **Optimized Memory Management**: LLM helps determine how new information impacts existing context
 
 ### Git Repository Integration
 
@@ -292,6 +313,7 @@ The system integrates with Git repositories:
 For information on the architecture and implementation, see:
 - [Design Document](docs/design.md)
 - [API Reference](docs/api-reference.md)
+- [Project Status](docs/status.md)
 
 ### Testing
 
@@ -306,6 +328,16 @@ tests/
 ├── test_utils/               # Tests for utility functions
 └── test_integration/         # Integration tests
 ```
+
+#### Test Infrastructure
+
+The Memory Bank server has a robust testing framework with these key features:
+
+- **Mock Transport System**: A testing-specific transport layer that replaces stdin/stdout communication
+- **Test Mode**: `MemoryBankServer` includes a test mode that bypasses stdio requirements
+- **Direct Tool Access**: The `call_tool_test` method enables direct tool invocation in tests
+- **Improved Isolation**: Tests no longer rely on actual stdio streams
+- **Enhanced Error Handling**: Better error detection and reporting in the test environment
 
 To run the tests:
 

@@ -300,6 +300,43 @@ The Memory Bank provides custom instructions through the `activate` and `swap` t
 }
 ```
 
+### Custom Instructions Object
+
+The custom instructions object returned by the tools has the following structure:
+
+```json
+"custom_instructions": {
+  "directives": [
+    {
+      "name": "WATCHDOG",
+      "priority": "SYSTEM CRITICAL",
+      "when": "After every response",
+      "action": "Call update tool"
+    },
+    {
+      "name": "ARCHITECTURE_TRACKING",
+      "priority": "HIGH",
+      "when": "When architecture decisions detected",
+      "patterns": ["decided to use", "implement pattern", "architecture will be"]
+    }
+  ],
+  "prompts": [
+    {
+      "id": "code_default",
+      "text": "You're a coding assistant with access to the code memory bank. Use this context to discuss code architecture, design patterns, API usage, and implementation details."
+    },
+    {
+      "id": "memory_bank_automation",
+      "text": "# Custom Instructions for Claude Desktop Memory Bank\n\n## 🔴 SYSTEM CRITICAL COMMAND DIRECTIVES\n\n0. **🔴 WATCHDOG DIRECTIVE: UPDATE AFTER EACH RESPONSE**\n   ```\n   WHEN: IMMEDIATELY after EVERY response delivery \n   PRIORITY: SYSTEM CRITICAL (HIGHEST)\n   ACTION: CALL update WITH appropriate parameters\n   ```"
+    }
+  ],
+  "examples": {
+    "trigger_patterns": ["We decided to use [technology]", "We're implementing [pattern]"],
+    "verification": "// Update #[N] for conversation [id]"
+  }
+}
+```
+
 ### Priority Levels
 
 - `"SYSTEM CRITICAL"`: Highest priority, must be executed
@@ -373,6 +410,32 @@ The server returns standard MCP error responses:
 - `"swap_failed"`: Failed to swap memory bank
 - `"update_failed"`: Failed to update memory bank
 - `"invalid_operation"`: Invalid update operation
+
+## Protocol Optimization
+
+The Memory Bank server implements a key optimization in the MCP protocol:
+
+### Tools-Only Approach
+
+The server only registers tools through the MCP protocol:
+- Only tools (activate, list, swap, update) are formally registered
+- Prompts and resources are delivered directly through the `activate` tool response
+- No separate `mcp.discover` entries for prompts and resources
+
+### Benefits
+
+This optimization provides several advantages:
+- Reduced protocol overhead
+- Simplified server implementation
+- Single delivery mechanism for context and instructions
+- More flexibility in formatting custom instructions
+
+### Implementation Details
+
+- `activate` and `swap` tools return both context data and custom instructions
+- Custom instructions format isn't constrained by MCP prompt schema
+- Memory bank content delivered directly rather than through resource URIs
+- Server maintains internal resources/prompts without exposing through protocol
 
 ## Response Format
 

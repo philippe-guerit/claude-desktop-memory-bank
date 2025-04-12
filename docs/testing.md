@@ -2,6 +2,18 @@
 
 This document describes the testing structure and practices for the Claude Desktop Memory Bank project.
 
+## Recent Improvements
+
+### Mock Transport System
+
+The test infrastructure now includes a specialized mock transport layer:
+
+- **Replaces stdin/stdout communication**: Tests no longer rely on actual stdio streams
+- **Test Mode**: `MemoryBankServer` includes a dedicated test mode
+- **Direct Tool Access**: The `call_tool_test` method enables direct tool invocation
+- **Better Error Handling**: Enhanced error detection and reporting
+- **Fixed Test Fixtures**: All test fixtures updated to use the new test mode
+
 ## Test Organization
 
 The tests are organized by component to improve maintainability and isolation:
@@ -95,10 +107,36 @@ When adding new tests, follow these guidelines:
 When testing MCP tools:
 
 1. **Response Parsing**: Use the `parse_response` helper to handle TextContent objects
-2. **Tool Mocking**: Mock `call_tool` to simulate MCP invocations
-3. **Server Lifecycle**: Properly handle server startup and shutdown in tests
-4. **Error Cases**: Test both success and error cases for all tools
-5. **Validation**: Verify tool responses have the expected structure
+2. **Direct Tool Access**: Use the new `call_tool_test` method to call tools directly
+3. **Mock Transport**: Initialize server with `test_mode=True` to use the mock transport
+4. **Server Lifecycle**: Properly handle server startup and shutdown in tests
+5. **Error Cases**: Test both success and error cases for all tools
+6. **Validation**: Verify tool responses have the expected structure
+
+### Using the Mock Transport
+
+```python
+# Example of using the mock transport for testing
+import pytest
+from memory_bank.server import MemoryBankServer
+
+@pytest.mark.asyncio
+async def test_with_mock_transport():
+    # Initialize server with test_mode
+    server = MemoryBankServer(storage_root=tmp_path)
+    await server.start(test_mode=True)
+    
+    # Call a tool directly
+    result = await server.call_tool_test("activate", {
+        "bank_type": "global",
+        "bank_id": "test"
+    })
+    
+    # Assert on the result
+    assert result["status"] == "success"
+    assert result["bank_info"]["type"] == "global"
+    assert result["bank_info"]["id"] == "test"
+```
 
 ## Coverage Goals
 

@@ -77,6 +77,17 @@ The test suite includes configuration to ensure compatibility across supported e
 1. **pytest.ini**: Configures pytest to work correctly with asyncio and suppresses known warnings
 2. **GitHub Actions**: Tests the code on multiple Python versions (3.8-3.12)
 3. **Response Parsing**: Handles compatibility with different MCP response formats
+4. **Mock Transport**: New test transport system provides consistent testing environment
+5. **Test Mode**: Server supports a dedicated test mode that bypasses stdio requirements
+
+### Mock Transport System
+
+The new mock transport system provides several compatibility advantages:
+
+- **Platform Independence**: Tests work consistently across operating systems
+- **Environment Isolation**: Transport mocking eliminates environmental dependencies
+- **Direct Tool Access**: The `call_tool_test` method provides consistent interface for tool testing
+- **Improved Reliability**: Removes dependencies on actual stdio streams that can vary between systems
 
 ## Handling Breaking Changes
 

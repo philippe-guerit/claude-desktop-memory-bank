@@ -16,11 +16,14 @@ from .server import MemoryBankServer
 # Apply patches to third-party libraries
 apply_patches()
 
-# Configure logging
+# Configure logging to stderr instead of stdout
+# IMPORTANT: When using MCP with stdio transport, stdout MUST contain only valid JSON-RPC messages.
+# Any additional output (logs, prints, etc.) will corrupt the communication protocol and cause
+# "Unexpected token" JSON parsing errors in the MCP client/inspector.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stderr)]
 )
 
 logger = logging.getLogger(__name__)

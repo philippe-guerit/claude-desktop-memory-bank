@@ -182,16 +182,16 @@ def test_automatic_git_detection(git_repo):
         server = MemoryBankServer(storage_root=storage_dir)
         
         try:
-            # Start the server
+            # Start the server in test mode
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            loop.run_until_complete(server.start())
+            loop.run_until_complete(server.start(test_mode=True))
             
             # Call activate with auto detection
             result = loop.run_until_complete(
-                server.server.call_tool(
+                server.call_tool_test(
                     "activate",
                     {
                         "bank_type": "code",
@@ -202,8 +202,7 @@ def test_automatic_git_detection(git_repo):
             )
             
             # Parse the response
-            import json
-            response = json.loads(result[0].text)
+            response = result
             
             # Verify the repository was detected
             assert response["status"] == "success"

@@ -13,38 +13,32 @@ from tests.conftest import parse_response
 async def test_swap_tool(server):
     """Test the swap tool."""
     # Create two banks first
-    await asyncio.gather(
-        server.server.call_tool(
-            "activate",
-            {
-                "bank_type": "global",
-                "bank_id": "test_swap_1"
-            }
-        )
+    await server.call_tool_test(
+        "activate",
+        {
+            "bank_type": "global",
+            "bank_id": "test_swap_1"
+        }
     )
     
-    await asyncio.gather(
-        server.server.call_tool(
-            "activate",
-            {
-                "bank_type": "project",
-                "bank_id": "test_swap_2"
-            }
-        )
+    await server.call_tool_test(
+        "activate",
+        {
+            "bank_type": "project",
+            "bank_id": "test_swap_2"
+        }
     )
     
     # Call the swap tool handler directly for testing
-    result = await asyncio.gather(
-        server.server.call_tool(
-            "swap",
-            {
-                "bank_type": "project",
-                "bank_id": "test_swap_2",
-                "temporary": True
-            }
-        )
+    result = await server.call_tool_test(
+        "swap",
+        {
+            "bank_type": "project",
+            "bank_id": "test_swap_2",
+            "temporary": True
+        }
     )
-    response = parse_response(result[0])
+    response = parse_response(result)
     
     # Check response structure
     assert "status" in response

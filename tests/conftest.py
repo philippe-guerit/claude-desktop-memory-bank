@@ -33,7 +33,7 @@ def storage_manager(temp_storage_dir):
 async def server(temp_storage_dir):
     """Create and start a memory bank server with a temporary storage directory."""
     server_obj = MemoryBankServer(storage_root=temp_storage_dir)
-    await server_obj.start()
+    await server_obj.start(test_mode=True)
     yield server_obj
     await server_obj.stop()
 

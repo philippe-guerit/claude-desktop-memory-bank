@@ -13,24 +13,20 @@ from tests.conftest import parse_response
 async def test_list_tool(server):
     """Test the list tool."""
     # Create a bank first
-    await asyncio.gather(
-        server.server.call_tool(
-            "activate",
-            {
-                "bank_type": "global",
-                "bank_id": "test_list"
-            }
-        )
+    await server.call_tool_test(
+        "activate",
+        {
+            "bank_type": "global",
+            "bank_id": "test_list"
+        }
     )
     
     # Call the list tool handler directly for testing
-    result = await asyncio.gather(
-        server.server.call_tool(
-            "list",
-            {}
-        )
+    result = await server.call_tool_test(
+        "list",
+        {}
     )
-    response = parse_response(result[0])
+    response = parse_response(result)
     
     # Check response structure
     assert "global" in response

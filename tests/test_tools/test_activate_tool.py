@@ -13,16 +13,14 @@ from tests.conftest import parse_response
 async def test_activate_tool(server):
     """Test the activate tool."""
     # Call the activate tool handler directly for testing
-    result = await asyncio.gather(
-        server.server.call_tool(
-            "activate",
-            {
-                "bank_type": "global",
-                "bank_id": "test_activate"
-            }
-        )
+    result = await server.call_tool_test(
+        "activate",
+        {
+            "bank_type": "global",
+            "bank_id": "test_activate"
+        }
     )
-    response = parse_response(result[0])
+    response = parse_response(result)
     
     # Check response structure
     assert "status" in response
@@ -38,16 +36,14 @@ async def test_activate_tool(server):
 async def test_custom_instructions(server):
     """Test that custom instructions are returned from tools."""
     # Call the activate tool handler directly for testing
-    result = await asyncio.gather(
-        server.server.call_tool(
-            "activate",
-            {
-                "bank_type": "code",
-                "bank_id": "test_instructions"
-            }
-        )
+    result = await server.call_tool_test(
+        "activate",
+        {
+            "bank_type": "code",
+            "bank_id": "test_instructions"
+        }
     )
-    response = parse_response(result[0])
+    response = parse_response(result)
     
     # Check custom instructions structure
     assert "custom_instructions" in response

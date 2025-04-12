@@ -48,6 +48,28 @@ class LLMCacheOptimizer:
     async def close(self):
         """Close the HTTP client."""
         await self.http_client.aclose()
+
+    def _handle_llm_error(self, exception):
+        """Handle an LLM API error by reporting it to the service config.
+        
+        Args:
+            exception: The exception that occurred
+        """
+        error_msg = str(exception)
+        logger.error(f"Error in LLM API call: {error_msg}")
+        
+        # Report the error to the service config for tracking
+        is_auth_error = any(term in error_msg.lower() for term in 
+                           ["unauthorized", "authentication", "api key", "auth"])
+        is_rate_limit = any(term in error_msg.lower() for term in 
+                           ["rate limit", "too many requests", "429"])
+        
+        if is_auth_error:
+            llm_config.report_error(error_msg, is_permanent=True)
+        elif is_rate_limit:
+            llm_config.report_error(error_msg)
+        else:
+            llm_config.report_error(error_msg)
         
     async def optimize_cache(self, bank_path: Path, content: Dict[str, str], 
                       bank_type: str, optimization_preference: str = "auto") -> bool:
@@ -165,6 +187,7 @@ class LLMCacheOptimizer:
             "timestamp": datetime.now().isoformat(),
             "optimization_type": "fallback",  # Special type for fallback caches
             "optimization_status": "error",  # Indicate there was an error
+            "optimization_method": "fallback",  # Method used
             "files": list(content.keys()),
             "summaries": {k: v[:100] + "..." if len(v) > 100 else v for k, v in content.items()},
             "concepts": {},
@@ -291,21 +314,8 @@ class LLMCacheOptimizer:
                 logger.info(f"Cache optimized (LLM) for {bank_path}")
                 return True
             except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Error in LLM API call: {error_msg}")
-                
-                # Report the error to the service config for tracking
-                is_auth_error = any(term in error_msg.lower() for term in 
-                                   ["unauthorized", "authentication", "api key", "auth"])
-                is_rate_limit = any(term in error_msg.lower() for term in 
-                                   ["rate limit", "too many requests", "429"])
-                
-                if is_auth_error:
-                    llm_config.report_error(error_msg, is_permanent=True)
-                elif is_rate_limit:
-                    llm_config.report_error(error_msg)
-                else:
-                    llm_config.report_error(error_msg)
+                # Call our error handler
+                self._handle_llm_error(e)
                 
                 logger.info("Falling back to simple optimization due to LLM API error")
                 return self._optimize_simple(bank_path, content, cache_path)

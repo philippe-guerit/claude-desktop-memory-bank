@@ -329,3 +329,6 @@ The project uses GitHub Actions for continuous integration:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+~/code/claude-desktop-memory-bank$ npx @modelcontextprotocol/inspector python3 -m run_server
+

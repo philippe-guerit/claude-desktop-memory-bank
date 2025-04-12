@@ -68,13 +68,11 @@ async def test_main_exception_handling():
     # Create mocks
     mock_server = MagicMock(spec=MemoryBankServer)
     
-    # Create a proper async mock for sleep that raises an exception
-    async def mock_sleep_func(seconds):
-        raise Exception("Test exception")
+    # Make the server.start() method raise an exception instead of using sleep
+    mock_server.start.side_effect = Exception("Test exception")
     
     # Patch the required functions
     with patch("memory_bank.__main__.MemoryBankServer", return_value=mock_server), \
-         patch("asyncio.sleep", mock_sleep_func), \
          pytest.raises(Exception) as excinfo:  # Expect an exception
         # Call the main function
         await memory_bank.__main__.main()
@@ -82,7 +80,7 @@ async def test_main_exception_handling():
     # Verify exception was propagated
     assert "Test exception" in str(excinfo.value)
     
-    # Verify server was started and stopped
+    # Verify server was started and stop was still called in finally block
     mock_server.start.assert_called_once()
     mock_server.stop.assert_called_once()
 

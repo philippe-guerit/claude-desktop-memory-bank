@@ -5,7 +5,6 @@
       "args": ["-m", "memory_bank"],
       "env": {
         "MEMORY_BANK_ROOT": "~/.claude-desktop/memory",
-        "ENABLE_REPO_DETECTION": "true",
         "LOG_LEVEL": "INFO"
       }
     }

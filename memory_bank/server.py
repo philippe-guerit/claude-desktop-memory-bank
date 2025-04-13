@@ -29,7 +29,6 @@ class MemoryBankServer:
         # Import here to avoid circular imports
         from .tools.activate import register_activate_tool
         from .tools.list import register_list_tool
-        from .tools.swap import register_swap_tool
         from .tools.update import register_update_tool
         from .storage.manager import StorageManager
         
@@ -46,7 +45,6 @@ class MemoryBankServer:
         # Register tools
         register_activate_tool(self.server, self.storage)
         register_list_tool(self.server, self.storage)
-        register_swap_tool(self.server, self.storage)
         register_update_tool(self.server, self.storage)
         
         # For test mode

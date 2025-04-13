@@ -54,11 +54,7 @@ The system supports three types of memory banks:
        "memory-bank": {
          "command": "python3",
          "args": ["-m", "memory_bank"],
-         "cwd": "/path/to/claude-desktop-memory-bank",
-         "env": {
-           "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
-           "ENABLE_REPO_DETECTION": "true"
-         }
+         "cwd": "/path/to/claude-desktop-memory-bank"
        }
      }
    }
@@ -71,16 +67,32 @@ The system supports three types of memory banks:
        "memory-bank": {
          "command": "python3",
          "args": ["run_server.py"],
+         "cwd": "/path/to/claude-desktop-memory-bank"
+       }
+     }
+   }
+   ```
+
+   **Option 3: Using a custom storage location**:
+   ```json
+   {
+     "mcpServers": {
+       "memory-bank": {
+         "command": "python3",
+         "args": ["-m", "memory_bank"],
          "cwd": "/path/to/claude-desktop-memory-bank",
          "env": {
-           "MEMORY_BANK_ROOT": "/path/to/your/storage/directory",
-           "ENABLE_REPO_DETECTION": "true"
+           "MEMORY_BANK_ROOT": "/custom/path/to/memory/storage"
          }
        }
      }
    }
    ```
-   Make sure to adjust the paths according to your setup.
+
+   **Environment Variables**:
+   - `MEMORY_BANK_ROOT` (Optional): Path to custom storage directory. If not specified, defaults to `~/.claude-desktop/memory/`
+
+   Make sure to adjust the `cwd` path according to your setup.
 
 5. **(Optional) Customize the wrapper script**:
    The repository already includes a `run_server.py` wrapper script that's ready to use. If you need to customize it, you can modify it to suit your needs. The existing wrapper looks like this:
@@ -217,10 +229,11 @@ The Memory Bank system implements the Model Context Protocol (MCP) v1.6.0+ with 
 
 - **activate**: Initializes and loads the appropriate memory bank at conversation start, with context-aware detection. Returns both context data and custom instructions.
 - **list**: Lists all available memory banks of each type (global, project, code).
-- **swap**: Changes the active memory bank for the current conversation, with options for temporary access or partial merging.
 - **update**: Updates memory bank content with new information, supporting targeted file updates and different operation types.
 
 ### Memory Bank Structure
+
+By default, all memory banks are stored in `~/.claude-desktop/memory/` (where `~` is your home directory). This location can be customized using the `MEMORY_BANK_ROOT` environment variable.
 
 Each memory bank type has a specific structure:
 
@@ -274,7 +287,7 @@ To maximize the chance of autonomous operation, it's recommended to add the foll
    WHEN: immediately BEFORE delivering the FIRST response to the user
    PRIORITY: SYSTEM CRITICAL (HIGHEST)
    ACTION: CALL activate WITH appropriate parameters
-   EXAMPLE: activate(bank_type="code", bank_id="project_x_repo")
+   EXAMPLE: activate(conversation_type="project", project_name="ProjectName", current_path="/path/to/repo")
    ```
 
 1. **🔴 DIRECTIVE: EXECUTE MEMORY BANK CUSTOM INSTRUCTION**
@@ -322,12 +335,15 @@ The system automatically optimizes the memory bank cache for efficiency:
 
 ### Git Repository Integration
 
-The system integrates with Git repositories:
+The system automatically integrates with Git repositories:
 
 - Automatically detects Git repositories when activating memory banks
 - Identifies and records the current branch name
 - Associates context with specific branches
 - Tracks relevant commit information
+- Creates code-specific memory banks customized for the repository
+
+This feature provides context-aware assistance with codebases by automatically creating optimized memory banks for your repositories.
 
 ## Development
 

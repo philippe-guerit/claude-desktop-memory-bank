@@ -18,29 +18,25 @@ logger = logging.getLogger(__name__)
 activate_schema = {
     "type": "object",
     "properties": {
-        "bank_type": {
+        "conversation_type": {
             "type": "string",
-            "enum": ["global", "project", "code"],
-            "description": "Type of memory bank to activate"
-        },
-        "bank_id": {
-            "type": "string",
-            "description": "Identifier for the specific memory bank instance"
-        },
-        "current_path": {
-            "type": "string",
-            "description": "Current path for code context detection"
+            "enum": ["global", "project"],
+            "description": "Type of conversation (global or project)"
         },
         "project_name": {
             "type": "string",
-            "description": "Project name for creating new projects"
+            "description": "Name of the project (required for project type)"
+        },
+        "current_path": {
+            "type": "string",
+            "description": "Current path hint for code repository detection"
         },
         "project_description": {
             "type": "string",
             "description": "Project description for creating new projects"
         }
     },
-    "required": ["bank_type", "bank_id"]
+    "required": ["conversation_type"]
 }
 
 
@@ -54,55 +50,71 @@ def register_activate_tool(server: FastMCP, storage):
     
     @server.tool(
         name="activate",
-        description="Activates and loads a memory bank for the current conversation"
+        description="Activates memory for the current conversation"
     )
-    async def activate(bank_type: str, bank_id: str,
-                       current_path: Optional[str] = None,
+    async def activate(conversation_type: str,
                        project_name: Optional[str] = None,
+                       current_path: Optional[str] = None,
                        project_description: Optional[str] = None) -> Dict[str, Any]:
         """Activate a memory bank for the current conversation.
         
         Args:
-            bank_type: Type of memory bank to activate (global, project, code)
-            bank_id: Identifier for the specific memory bank instance
-            current_path: Current path for code context detection
-            project_name: Project name for creating new projects
+            conversation_type: Type of conversation (global or project)
+            project_name: Name of the project (required for project type)
+            current_path: Current path hint for code repository detection
             project_description: Project description for creating new projects
             
         Returns:
             Dict containing bank info, content, and custom instructions
         """
-        logger.info(f"Activating {bank_type} memory bank: {bank_id}")
+        logger.info(f"Activating {conversation_type} conversation")
         
         try:
-            # Validate bank type
-            if bank_type not in ["global", "project", "code"]:
+            # Validate conversation type
+            if conversation_type not in ["global", "project"]:
                 raise McpError(
                     ErrorData(
-                        code="invalid_bank_type",
-                        message=f"Invalid bank type: {bank_type}. Must be one of: global, project, code."
+                        code="invalid_conversation_type",
+                        message=f"Invalid conversation type: {conversation_type}. Must be one of: global, project."
                     )
                 )
             
-            # Handle code bank with path detection
-            repo_path = None
-            if bank_type == "code" and current_path:
-                # Try to detect Git repository
-                repo_info = storage.detect_repo(current_path)
-                if repo_info:
-                    repo_path = Path(repo_info["repo_path"])
-                    
-                    # Use repo name as bank_id if not specified
-                    if bank_id == "auto" or not bank_id:
-                        bank_id = repo_info["repo_name"].replace(" ", "_").lower()
-            
-            # Create bank_id for new projects
-            if bank_type == "project" and (bank_id == "auto" or not bank_id) and project_name:
-                bank_id = project_name.replace(" ", "_").lower()
-            
-            # Use "default" for global banks with auto ID
-            if bank_type == "global" and (bank_id == "auto" or not bank_id):
+            # For global conversations, use a standard bank_id
+            if conversation_type == "global":
+                bank_type = "global"
                 bank_id = "default"
+                repo_path = None
+            
+            # For project conversations, require project_name
+            elif conversation_type == "project":
+                if not project_name:
+                    raise McpError(
+                        ErrorData(
+                            code="missing_project_name",
+                            message="Project name is required for project conversations."
+                        )
+                    )
+                
+                # Create a normalized bank_id from project_name
+                normalized_project_name = project_name.replace(" ", "_").lower()
+                
+                # Detect if this is a code project by checking for a Git repository
+                repo_path = None
+                bank_type = "project"  # Default to standard project
+                
+                if current_path:
+                    # Try to detect Git repository
+                    repo_info = storage.detect_repo(current_path)
+                    if repo_info:
+                        repo_path = Path(repo_info["repo_path"])
+                        bank_type = "code"  # This is a code project
+                        bank_id = normalized_project_name
+                    else:
+                        # No Git repository, use standard project
+                        bank_id = normalized_project_name
+                else:
+                    # No path hint, use standard project
+                    bank_id = normalized_project_name
             
             # Load or create memory bank
             bank = storage.get_bank(bank_type, bank_id, repo_path)
@@ -111,7 +123,7 @@ def register_activate_tool(server: FastMCP, storage):
                 bank = storage.create_bank(bank_type, bank_id, repo_path)
                 
                 # Initialize project information if provided
-                if bank_type == "project" and project_name and project_description:
+                if bank_type in ["project", "code"] and project_name and project_description:
                     bank.update_file("readme.md", f"""# {project_name}
 
 ## Project Overview

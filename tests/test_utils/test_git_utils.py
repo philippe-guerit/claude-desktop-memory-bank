@@ -189,13 +189,13 @@ def test_automatic_git_detection(git_repo):
             
             loop.run_until_complete(server.start(test_mode=True))
             
-            # Call activate with auto detection
+            # Call activate with project type and path to git repo
             result = loop.run_until_complete(
                 server.call_tool_test(
                     "activate",
                     {
-                        "bank_type": "code",
-                        "bank_id": "auto",
+                        "conversation_type": "project",
+                        "project_name": "Git Test Project",
                         "current_path": str(git_repo)
                     }
                 )
@@ -206,6 +206,8 @@ def test_automatic_git_detection(git_repo):
             
             # Verify the repository was detected
             assert response["status"] == "success"
+            
+            # Since it's a git repo, it should be detected as a code project
             assert response["bank_info"]["type"] == "code"
             
             # Get the bank ID
@@ -215,7 +217,7 @@ def test_automatic_git_detection(git_repo):
             bank = server.storage.get_bank("code", bank_id)
             meta = bank.get_meta()
             
-            # Verify Git info
+            # Verify Git info is present
             assert "git" in meta
             assert meta["git"]["is_git_repo"] is True
             assert "repo_path" in meta["git"]

@@ -38,10 +38,14 @@ Based on Model Context Protocol (MCP) standards, our design recognizes the follo
 │   └── {project-id}/                 # Project-specific directory
 │       ├── readme.md                 # Project overview
 │       ├── doc/                      # Documentation directory
-│       │   ├── architecture.md       # Architecture decisions
-│       │   ├── design.md             # Design documentation
-│       │   └── progress.md           # Current state and next steps
-│       ├── tasks.md                  # Active tasks and todos
+│       │   ├── objectives.md         # Goals and objectives
+│       │   ├── decisions.md          # Key decisions (generic)
+│       │   ├── progress.md           # Status updates
+│       │   └── references.md         # Important references
+│       ├── notes/                    # Project-specific notes
+│       │   ├── meeting_notes.md      # Meeting summaries
+│       │   ├── ideas.md              # Brainstorming and ideas
+│       │   └── research.md           # Research findings
 │       └── cache.json                # Optimized representation for LLM use
 └── code/                             # Independent code memory banks
     └── {repo-id}/                    # Repository-specific directory
@@ -443,6 +447,42 @@ Our server leverages natural git workflow interactions:
 2. **Incremental Updates**: Cache only regenerated when necessary
 3. **Granular Access**: Resources support fetching specific sections or summaries
 
+## Memory Bank Improvement Proposal Implementation
+
+The Memory Bank Improvement Proposal has been implemented to simplify client integration and enhance system intelligence:
+
+### Standardized Project Template
+
+All project memory banks now use a consistent, standardized template designed to support a wide range of project types:
+
+```
+projects/{project-id}/
+├── readme.md                # Project overview
+├── doc/                     # Documentation directory
+│   ├── objectives.md        # Goals and objectives
+│   ├── decisions.md         # Key decisions (generic)
+│   ├── progress.md          # Status updates
+│   └── references.md        # Important references
+├── notes/                   # Project-specific notes
+│   ├── meeting_notes.md     # Meeting summaries
+│   ├── ideas.md             # Brainstorming and ideas
+│   └── research.md          # Research findings
+└── cache.json               # Optimized representation
+```
+
+Key benefits of this standardized template:
+1. **Consistency**: All projects follow the same organization pattern
+2. **Comprehensive Coverage**: Supports documentation, decisions, progress tracking, and various note types
+3. **Simplified Integration**: Clients can rely on a consistent structure
+4. **Enhanced Directives**: Custom instructions designed specifically for this template
+
+The system provides directives for each file type in the template, including:
+- Decision tracking for technical and process choices
+- Progress monitoring for status updates
+- Meeting notes capture for action items
+- Idea documentation for brainstorming results
+- Research findings for technical investigations
+
 ## Differentiation from Cline Memory Bank
 
 Unlike Cline Memory Bank, our MCP server design:
@@ -451,6 +491,7 @@ Unlike Cline Memory Bank, our MCP server design:
 3. **Exposes Real Files**: Uses actual project files rather than special memory files
 4. **Provides Guidance**: Rich metadata guides clients on proper usage
 5. **Optimizes Large Content**: Cache system manages memory bank size and relevance
+6. **Standardized Templates**: Consistent project structure simplifies integration
 
 ## Conclusion
 

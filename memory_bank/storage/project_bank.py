@@ -26,7 +26,7 @@ class ProjectMemoryBank(MemoryBank):
         self._init_default_files()
     
     def _init_default_files(self) -> None:
-        """Initialize default files for this bank type."""
+        """Initialize default files for the standardized project template."""
         # Readme file
         if not (self.root_path / "readme.md").exists():
             self.update_file("readme.md", f"""# {self.bank_id.replace('_', ' ').title()}
@@ -44,32 +44,32 @@ Key stakeholders and their roles.
         # Create doc directory
         (self.root_path / "doc").mkdir(exist_ok=True)
         
-        # Architecture doc
-        if not (self.root_path / "doc" / "architecture.md").exists():
-            self.update_file("doc/architecture.md", """# Architecture
+        # Objectives doc
+        if not (self.root_path / "doc" / "objectives.md").exists():
+            self.update_file("doc/objectives.md", """# Project Objectives
 
-## System Architecture
-Overview of the system architecture.
+## Primary Goals
+Main objectives of the project.
 
-## Design Decisions
-Key architecture decisions and their rationale.
+## Success Criteria
+How success will be measured.
 
-## Components
-Major components and their interactions.
+## Timeline
+Expected timeline and milestones.
 """)
         
-        # Design doc
-        if not (self.root_path / "doc" / "design.md").exists():
-            self.update_file("doc/design.md", """# Design
+        # Decisions doc
+        if not (self.root_path / "doc" / "decisions.md").exists():
+            self.update_file("doc/decisions.md", """# Key Decisions
 
-## Design Principles
-Core design principles for the project.
+## Technical Decisions
+Important technical choices and their rationale.
 
-## Patterns
-Design patterns used in the project.
+## Process Decisions
+Process and methodology decisions.
 
-## User Experience
-Design considerations for user experience.
+## Design Decisions
+Key design choices and their justification.
 """)
         
         # Progress doc
@@ -86,18 +86,63 @@ Upcoming tasks and milestones.
 Current challenges and how they're being addressed.
 """)
         
-        # Tasks file
-        if not (self.root_path / "tasks.md").exists():
-            self.update_file("tasks.md", """# Tasks
+        # References doc
+        if not (self.root_path / "doc" / "references.md").exists():
+            self.update_file("doc/references.md", """# Important References
 
-## Active Tasks
-Tasks currently in progress.
+## External Resources
+Links to external documentation, articles, and resources.
 
-## Backlog
-Tasks to be addressed in the future.
+## Internal Documents
+References to internal documentation and resources.
 
-## Completed
-Recently completed tasks.
+## Standards & Guidelines
+Relevant standards and guidelines for the project.
+""")
+
+        # Create notes directory
+        (self.root_path / "notes").mkdir(exist_ok=True)
+        
+        # Meeting notes
+        if not (self.root_path / "notes" / "meeting_notes.md").exists():
+            self.update_file("notes/meeting_notes.md", """# Meeting Notes
+
+## Recent Meetings
+Notes from recent project meetings.
+
+## Action Items
+Action items from meetings.
+
+## Decisions Made
+Key decisions made during meetings.
+""")
+        
+        # Ideas
+        if not (self.root_path / "notes" / "ideas.md").exists():
+            self.update_file("notes/ideas.md", """# Project Ideas
+
+## Brainstorming
+Ideas from brainstorming sessions.
+
+## Future Possibilities
+Potential future directions.
+
+## Innovations
+Innovative approaches being considered.
+""")
+        
+        # Research
+        if not (self.root_path / "notes" / "research.md").exists():
+            self.update_file("notes/research.md", """# Research Findings
+
+## Market Research
+Findings from market research.
+
+## Technical Research
+Results of technical investigations.
+
+## User Research
+Insights from user research and feedback.
 """)
     
     def get_custom_instructions(self) -> Dict[str, Any]:
@@ -113,19 +158,45 @@ Recently completed tasks.
         instructions["prompts"].append({
             "id": "project_default",
             "text": f"""You're an assistant working on the project "{self.bank_id.replace('_', ' ').title()}".
-Use this context to discuss project architecture, design, progress, and tasks.
+Use this standardized project memory bank to track objectives, decisions, progress, and project notes.
 
-Pay special attention to architecture decisions, design patterns, technical decisions,
-and project progress. Update the memory bank when you observe important context that
-should persist across conversations about this project."""
+Pay special attention to key decisions, project objectives, research findings, and meeting outcomes.
+Update the memory bank when you observe important information that should persist across 
+conversations about this project."""
         })
         
         # Add project-specific directives
-        instructions["directives"].append({
-            "name": "PROJECT_UPDATE",
-            "priority": "HIGH",
-            "when": "User mentions upcoming tasks or completed work",
-            "action": "CALL update with target_file='tasks.md'"
-        })
+        instructions["directives"].extend([
+            {
+                "name": "DECISION_TRACKING",
+                "priority": "HIGH",
+                "when": "User mentions important decisions or technical choices",
+                "action": "CALL update with target_file='doc/decisions.md'"
+            },
+            {
+                "name": "PROGRESS_TRACKING",
+                "priority": "HIGH",
+                "when": "User mentions project progress, current state, or challenges",
+                "action": "CALL update with target_file='doc/progress.md'"
+            },
+            {
+                "name": "MEETING_NOTES",
+                "priority": "MEDIUM",
+                "when": "User discusses meeting outcomes or action items",
+                "action": "CALL update with target_file='notes/meeting_notes.md'"
+            },
+            {
+                "name": "IDEA_CAPTURE",
+                "priority": "MEDIUM",
+                "when": "User shares new ideas or brainstorming results",
+                "action": "CALL update with target_file='notes/ideas.md'"
+            },
+            {
+                "name": "RESEARCH_FINDINGS",
+                "priority": "MEDIUM",
+                "when": "User mentions research results or findings",
+                "action": "CALL update with target_file='notes/research.md'"
+            }
+        ])
         
         return instructions

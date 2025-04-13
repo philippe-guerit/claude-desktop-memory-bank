@@ -183,8 +183,25 @@ Both methods work identically and provide the same functionality.
 ### Memory Bank Types
 
 - **Global Memory Bank**: For general context across all conversations
-- **Project Memory Banks**: Context linked to specific Claude Desktop projects
+- **Project Memory Banks**: Context linked to specific Claude Desktop projects, using a standardized template
 - **Code Memory Banks**: Context stored directly within Git repositories with branch detection
+
+### Standardized Project Template
+
+All project memory banks use a standardized template optimized for various project types, consisting of:
+
+- **Project Overview**: Basic project information in readme.md
+- **Documentation Directory**: 
+  - Goals and objectives tracking
+  - Key decisions documentation
+  - Progress updates
+  - Important references
+- **Notes Directory**:
+  - Meeting summaries
+  - Ideas and brainstorming results
+  - Research findings
+
+This standardized structure simplifies client integration and makes it easier to maintain project context across conversations.
 
 ### Key Benefits
 
@@ -221,10 +238,14 @@ Each memory bank type has a specific structure:
 ~/.claude-desktop/memory/projects/{bank_id}/
 ├── readme.md                     # Project overview
 ├── doc/                          # Documentation directory
-│   ├── architecture.md           # Architecture decisions
-│   ├── design.md                 # Design documentation
-│   └── progress.md               # Current state and next steps
-├── tasks.md                      # Active tasks and todos
+│   ├── objectives.md             # Goals and objectives
+│   ├── decisions.md              # Key decisions (generic)
+│   ├── progress.md               # Status updates
+│   └── references.md             # Important references
+├── notes/                        # Project-specific notes
+│   ├── meeting_notes.md          # Meeting summaries
+│   ├── ideas.md                  # Brainstorming and ideas
+│   └── research.md               # Research findings
 └── cache.json                    # Optimized representation for LLM use
 ```
 

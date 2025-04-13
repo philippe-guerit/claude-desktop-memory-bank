@@ -347,10 +347,12 @@ The custom instructions object returned by the tools has the following structure
 ### Common Directives
 
 1. **WATCHDOG**: Monitors for updates after each response
-2. **ARCHITECTURE_TRACKING**: Tracks architecture decisions
-3. **DESIGN_TRACKING**: Tracks design patterns and implementation details
-4. **PROGRESS_TRACKING**: Tracks completed work and next steps
-5. **GIT_COMMIT**: Captures information during commit preparation
+2. **DECISION_TRACKING**: Tracks important decisions and technical choices
+3. **PROGRESS_TRACKING**: Tracks completed work and next steps
+4. **MEETING_NOTES**: Captures meeting outcomes and action items
+5. **IDEA_CAPTURE**: Records new ideas and brainstorming results
+6. **RESEARCH_FINDINGS**: Documents research results and findings
+7. **GIT_COMMIT**: Captures information during commit preparation
 
 ## File Structure
 
@@ -366,10 +368,13 @@ Each memory bank type has a specific structure:
 ### Project Memory Bank
 
 - `readme.md`: Project overview
-- `doc/architecture.md`: Architecture decisions
-- `doc/design.md`: Design documentation
-- `doc/progress.md`: Current state and next steps
-- `tasks.md`: Active tasks and todos
+- `doc/objectives.md`: Goals and objectives
+- `doc/decisions.md`: Key decisions (generic)
+- `doc/progress.md`: Status updates
+- `doc/references.md`: Important references
+- `notes/meeting_notes.md`: Meeting summaries
+- `notes/ideas.md`: Brainstorming and ideas
+- `notes/research.md`: Research findings
 - `cache.json`: Optimized representation for LLM use
 
 ### Code Memory Bank

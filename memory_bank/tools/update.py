@@ -1,7 +1,7 @@
 """
 Update tool implementation.
 
-This module provides the update tool for updating memory banks.
+This module provides the update tool for updating memory banks with automatic content analysis.
 """
 
 from typing import Dict, Any, Optional
@@ -11,42 +11,17 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData
 
+from memory_bank.content import ContentAnalyzer
+
 logger = logging.getLogger(__name__)
 
 # Schema for update tool
 update_schema = {
     "type": "object",
     "properties": {
-        "bank_type": {
-            "type": "string",
-            "enum": ["global", "project", "code"],
-            "description": "Type of memory bank to update"
-        },
-        "bank_id": {
-            "type": "string",
-            "description": "Identifier for the specific memory bank to update"
-        },
-        "target_file": {
-            "type": "string",
-            "description": "Specific file to update (e.g., 'doc/design.md')"
-        },
-        "operation": {
-            "type": "string",
-            "enum": ["append", "replace", "insert"],
-            "description": "How to apply the update"
-        },
         "content": {
             "type": "string",
-            "description": "Content to add to the memory bank"
-        },
-        "position": {
-            "type": "string",
-            "description": "Position identifier for insert operations (e.g., section name)"
-        },
-        "trigger_type": {
-            "type": "string",
-            "enum": ["watchdog", "architecture", "technology", "progress", "commit", "user_request"],
-            "description": "What triggered this update"
+            "description": "The conversation content to store"
         },
         "conversation_id": {
             "type": "string",
@@ -57,7 +32,7 @@ update_schema = {
             "description": "Counter for updates in this conversation"
         }
     },
-    "required": ["bank_type", "bank_id", "target_file", "operation", "content"]
+    "required": ["content"]
 }
 
 
@@ -71,48 +46,57 @@ def register_update_tool(server: FastMCP, storage):
     
     @server.tool(
         name="update",
-        description="Updates the memory bank with new information from the conversation"
+        description="Updates memory with conversation content"
     )
-    async def update(bank_type: str, bank_id: str, target_file: str, operation: str, content: str,
-                     position: Optional[str] = None, trigger_type: Optional[str] = None,
-                     conversation_id: Optional[str] = None, update_count: Optional[int] = None) -> Dict[str, Any]:
-        """Update a memory bank with new information.
+    async def update(content: str, 
+                     conversation_id: Optional[str] = None, 
+                     update_count: Optional[int] = None) -> Dict[str, Any]:
+        """Update memory with conversation content.
         
         Args:
-            bank_type: Type of memory bank to update (global, project, code)
-            bank_id: Identifier for the specific memory bank to update
-            target_file: Specific file to update (e.g., 'doc/design.md')
-            operation: How to apply the update (replace, append, insert)
-            content: Content to add to the memory bank
-            position: Position identifier for insert operations (e.g., section name)
-            trigger_type: What triggered this update
+            content: The conversation content to store
             conversation_id: Identifier for the current conversation
             update_count: Counter for updates in this conversation
             
         Returns:
             Dict containing update status and information
         """
-        logger.info(f"Updating {bank_type} memory bank: {bank_id}, file: {target_file}, operation: {operation}")
+        logger.info(f"Updating memory with conversation content")
         
         try:
-            # Get memory bank
-            bank = storage.get_bank(bank_type, bank_id)
-            if not bank:
-                raise McpError(
-                    ErrorData(
-                        code=404,  # Not Found
-                        message=f"Memory bank not found: {bank_type}/{bank_id}"
-                    )
-                )
+            # We need to get the currently active memory bank
+            # This requires getting it from activate's state
             
-            # Validate operation
-            if operation not in ["append", "replace", "insert"]:
-                raise McpError(
-                    ErrorData(
-                        code=400,  # Bad Request
-                        message=f"Invalid operation: {operation}. Must be one of: append, replace, insert."
-                    )
-                )
+            # Look for the first memory bank that was activated
+            active_banks = []
+            for bank_type in ["global", "project", "code"]:
+                active_banks.extend(storage.active_banks.get(bank_type, {}).values())
+            
+            if not active_banks:
+                # Default to global memory bank
+                logger.warning("No active memory bank found, using global default")
+                bank = storage.get_bank("global", "default")
+                if not bank:
+                    bank = storage.create_bank("global", "default")
+            else:
+                # Use the first active bank
+                bank = active_banks[0]
+            
+            # Get bank type
+            bank_type = bank.__class__.__name__.replace("MemoryBank", "").lower()
+            bank_id = bank.bank_id
+            
+            logger.info(f"Using {bank_type} memory bank: {bank_id}")
+            
+            # Analyze content to determine target file and operation
+            analysis = ContentAnalyzer.determine_target_file(bank_type, content)
+            target_file = analysis["target_file"]
+            operation = analysis["operation"]
+            position = analysis["position"]
+            category = analysis["category"]
+            
+            # Create a trigger type based on the content category
+            trigger_type = category if category != "default" else "watchdog"
             
             # Add context to content if extra metadata is provided
             if trigger_type or conversation_id or update_count:
@@ -130,6 +114,12 @@ def register_update_tool(server: FastMCP, storage):
                 
                 # Append footer to content
                 content += footer
+            
+            # Create subdirectories for target file if needed
+            if "/" in target_file:
+                subdir = "/".join(target_file.split("/")[:-1])
+                if not (bank.root_path / subdir).exists():
+                    (bank.root_path / subdir).mkdir(parents=True, exist_ok=True)
             
             # Update the file
             success = bank.update_file(target_file, content, operation, position)
@@ -149,10 +139,10 @@ def register_update_tool(server: FastMCP, storage):
             optimize_with_llm = False
             
             # Optimization triggers
-            if trigger_type in ["architecture", "technology", "progress"]:
+            if category in ["architecture", "technology", "progress"]:
                 # Important updates should trigger LLM optimization
                 optimize_with_llm = True
-                logger.info(f"Triggering LLM optimization due to {trigger_type} update")
+                logger.info(f"Triggering LLM optimization due to {category} update")
             elif update_count and update_count % 5 == 0:
                 # Periodic optimization every 5 updates
                 optimize_with_llm = True
@@ -163,27 +153,29 @@ def register_update_tool(server: FastMCP, storage):
                 # Get all content for optimization
                 all_content = bank.load_all_content()
                 
-                # Get bank type
-                bank_type = bank.__class__.__name__.replace("MemoryBank", "").lower()
-                
                 # Import here to avoid circular imports
                 from memory_bank.cache.optimizer import optimize_cache
                 result, messages = optimize_cache(bank.root_path, all_content, bank_type, optimization_preference="llm")
                 
                 if result:
                     logger.info(f"Successfully optimized cache for {bank_type}/{bank.bank_id}")
+                    cache_optimized = True
                 else:
                     logger.warning(f"Failed to optimize cache for {bank_type}/{bank.bank_id}")
             
             return {
                 "status": "success",
+                "bank_info": {
+                    "type": bank_type,
+                    "id": bank_id
+                },
                 "updated_file": target_file,
                 "operation": operation,
+                "category": category,
+                "confidence": analysis["confidence"],
                 "cache_updated": True,
                 "cache_optimized": cache_optimized,
-                "trigger_type": trigger_type,
-                "verification": verification,
-                "next_actions": []
+                "verification": verification
             }
             
         except Exception as e:
@@ -191,6 +183,6 @@ def register_update_tool(server: FastMCP, storage):
             raise McpError(
                 ErrorData(
                     code=500,  # Internal Server Error
-                    message=f"Failed to update memory bank: {str(e)}"
+                    message=f"Failed to update memory: {str(e)}"
                 )
             )

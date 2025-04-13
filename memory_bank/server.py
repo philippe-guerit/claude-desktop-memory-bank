@@ -62,7 +62,9 @@ class MemoryBankServer:
         """
         if test_mode:
             logger.info("Starting Memory Bank MCP Server in test mode...")
-            from .utils.test.mock_transport import MockTransport
+            # Import mock transport from tests package
+            import sys
+            from tests.test_utils.test_transport.mock_transport import MockTransport
             
             # Create a mock transport for testing
             self.mock_transport = MockTransport()

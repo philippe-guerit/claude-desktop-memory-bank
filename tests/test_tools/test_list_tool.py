@@ -12,12 +12,20 @@ from tests.conftest import parse_response
 @pytest.mark.asyncio
 async def test_list_tool(server):
     """Test the list tool."""
-    # Create a bank first
+    # Create a global bank first
     await server.call_tool_test(
         "activate",
         {
-            "bank_type": "global",
-            "bank_id": "test_list"
+            "conversation_type": "global"
+        }
+    )
+    
+    # Create a project bank
+    await server.call_tool_test(
+        "activate",
+        {
+            "conversation_type": "project",
+            "project_name": "Test Project"
         }
     )
     
@@ -30,12 +38,21 @@ async def test_list_tool(server):
     
     # Check response structure
     assert "global" in response
+    assert "projects" in response
     
-    # Find our test bank
-    found = False
-    for bank in response["global"]:
-        if bank["id"] == "test_list":
-            found = True
+    # Check that we have global banks
+    global_banks = response["global"]
+    assert isinstance(global_banks, list)
+    assert len(global_banks) > 0, "No global banks found"
+    
+    # Check that we have the project bank
+    project_banks = response["projects"]
+    assert isinstance(project_banks, list)
+    
+    test_project_found = False
+    for bank in project_banks:
+        if "id" in bank and "test_project" in bank["id"].lower():
+            test_project_found = True
             break
     
-    assert found, "Created bank not found in list response"
+    assert test_project_found, "Test project not found in list response"

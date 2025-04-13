@@ -154,8 +154,8 @@ def register_update_tool(server: FastMCP, storage):
                 all_content = bank.load_all_content()
                 
                 # Import here to avoid circular imports
-                from memory_bank.cache.optimizer import optimize_cache
-                result, messages = optimize_cache(bank.root_path, all_content, bank_type, optimization_preference="llm")
+                from memory_bank.cache.optimizer import optimize_cache_async
+                result, messages = await optimize_cache_async(bank.root_path, all_content, bank_type, optimization_preference="llm")
                 
                 if result:
                     logger.info(f"Successfully optimized cache for {bank_type}/{bank.bank_id}")

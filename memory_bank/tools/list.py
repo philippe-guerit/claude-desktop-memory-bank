@@ -59,7 +59,7 @@ def register_list_tool(server: FastMCP, storage):
             logger.error(f"Error listing memory banks: {e}")
             raise McpError(
                 ErrorData(
-                    code="list_failed",
+                    code=-32003,  # Custom error code for list failure
                     message=f"Failed to list memory banks: {str(e)}"
                 )
             )

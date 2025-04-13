@@ -74,7 +74,7 @@ def register_activate_tool(server: FastMCP, storage):
             if conversation_type not in ["global", "project"]:
                 raise McpError(
                     ErrorData(
-                        code="invalid_conversation_type",
+                        code=-32001,  # Custom error code for invalid conversation type
                         message=f"Invalid conversation type: {conversation_type}. Must be one of: global, project."
                     )
                 )
@@ -90,7 +90,7 @@ def register_activate_tool(server: FastMCP, storage):
                 if not project_name:
                     raise McpError(
                         ErrorData(
-                            code="missing_project_name",
+                            code=-32002,  # Custom error code for missing project name
                             message="Project name is required for project conversations."
                         )
                     )
@@ -158,7 +158,7 @@ Key stakeholders and their roles.
             logger.error(f"Error activating memory bank: {e}")
             raise McpError(
                 ErrorData(
-                    code="activation_failed",
+                    code=-32000,  # General error code for activation failure
                     message=f"Failed to activate memory bank: {str(e)}"
                 )
             )

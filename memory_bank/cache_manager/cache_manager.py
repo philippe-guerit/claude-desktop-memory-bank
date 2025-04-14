@@ -126,7 +126,7 @@ class CacheManager:
         
         # Process the content and update in-memory cache
         try:
-            updated_content = self._process_content(content, self.cache.get(key, {}))
+            updated_content = self._process_content(content, self.cache.get(key, {}), bank_type)
             self.cache[key] = self._merge_content(self.cache.get(key, {}), updated_content)
             self.pending_updates[key] = True
             
@@ -231,24 +231,50 @@ class CacheManager:
             if len(self.error_history) > 100:
                 self.error_history = self.error_history[-100:]
     
-    def _process_content(self, content: str, existing_cache: Dict[str, str]) -> Dict[str, str]:
-        """Process content using LLM-based or rule-based approach.
+    def _process_content(self, content: str, existing_cache: Dict[str, str], bank_type: str = "global") -> Dict[str, str]:
+        """Process content using ContentAnalyzer with LLM-based or rule-based processing.
         
         Args:
             content: New content to process
             existing_cache: Existing cache content
+            bank_type: Type of bank (global, project, code)
             
         Returns:
             Processed content as a dict mapping file paths to content
         """
         try:
-            # For Phase 1, just use rule-based processing
-            # LLM-based processing will be implemented in a later phase
+            # Import the new components from Phase 5
+            from memory_bank.content.content_analyzer import ContentAnalyzer
+            from memory_bank.content.async_bridge import AsyncBridge
+            
+            # Use the AsyncBridge to safely call the async ContentAnalyzer
+            try:
+                processing_result = AsyncBridge.process_content_sync(
+                    ContentAnalyzer.process_content,
+                    content,
+                    existing_cache,
+                    bank_type
+                )
+                
+                # Convert the result to the format expected by the cache manager
+                if processing_result and "target_file" in processing_result:
+                    target_file = processing_result.get("target_file", "context.md")
+                    file_content = processing_result.get("content", content)
+                    
+                    # Create a dict with the target file as key
+                    return {target_file: file_content}
+                    
+            except Exception as e:
+                logger.warning(f"Error using AsyncBridge for content processing: {e}")
+                logger.info("Falling back to rule-based processing")
+            
+            # Fallback to rule-based processing if ContentAnalyzer integration fails
             return self._process_with_rules(content, existing_cache)
             
         except Exception as e:
             logger.error(f"Error processing content: {e}")
-            raise
+            logger.info("Falling back to rule-based processing")
+            return self._process_with_rules(content, existing_cache)
     
     def _process_with_rules(self, content: str, existing_cache: Dict[str, str]) -> Dict[str, str]:
         """Process content with rule-based approach.

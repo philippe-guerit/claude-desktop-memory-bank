@@ -4,6 +4,8 @@ Tests for the CacheManager class.
 
 import os
 import json
+import tempfile
+import shutil
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -12,12 +14,32 @@ from memory_bank.cache_manager import CacheManager
 
 
 @pytest.fixture
+def temp_dir():
+    """Create a temporary directory for testing."""
+    temp = tempfile.mkdtemp()
+    yield Path(temp)
+    shutil.rmtree(temp)
+
+
+@pytest.fixture
 def cache_manager():
     """Cache manager fixture for tests."""
     # Reset the singleton before each test
     CacheManager._instance = None
-    manager = CacheManager.get_instance(debug_memory_dump=True)
-    return manager
+    
+    # Mock the storage root path to use a temporary directory
+    with patch.object(Path, 'home', return_value=Path('/tmp')):
+        with patch('memory_bank.cache_manager.cache_manager.FileSynchronizer') as mock_sync_class:
+            # Create a proper mock instance
+            mock_sync = MagicMock()
+            mock_sync_class.return_value = mock_sync
+            
+            manager = CacheManager.get_instance(debug_memory_dump=True)
+            
+            yield manager
+            
+            # Clean up
+            manager.close()
 
 
 def test_singleton_pattern():
@@ -95,28 +117,39 @@ def test_get_bank_not_cached(mock_load):
     mock_load.assert_called_once_with("global", "default")
 
 
-@patch('memory_bank.cache_manager.cache_manager.CacheManager._process_content')
-@patch('memory_bank.cache_manager.cache_manager.CacheManager._schedule_disk_sync')
-@patch('memory_bank.cache_manager.cache_manager.CacheManager.dump_debug_memory')
-def test_update_bank(mock_dump, mock_schedule, mock_process):
+def test_update_bank():
     """Test update_bank with normal operation."""
-    cm = CacheManager.get_instance()
+    # Reset the singleton
+    CacheManager._instance = None
     
-    # Set up mocks
-    mock_process.return_value = {"test.md": "Processed content"}
-    
-    # Add a bank to the cache
-    cm.cache = {"global:default": {"test.md": "Original content"}}
-    
-    # Update the bank
-    result = cm.update_bank("global", "default", "New content")
-    
-    # Verify results
-    assert result["status"] == "success"
-    assert cm.pending_updates.get("global:default") is True
-    mock_process.assert_called_once()
-    mock_schedule.assert_called_once_with("global", "default")
-    mock_dump.assert_called_once()
+    # Create a proper mock for FileSynchronizer
+    with patch('memory_bank.cache_manager.cache_manager.FileSynchronizer') as mock_sync_class:
+        # Create mock instance with proper methods
+        mock_sync = MagicMock()
+        mock_sync_class.return_value = mock_sync
+        
+        with patch('memory_bank.cache_manager.cache_manager.CacheManager._process_content') as mock_process, \
+             patch('memory_bank.cache_manager.cache_manager.CacheManager._is_large_update') as mock_is_large, \
+             patch('memory_bank.cache_manager.cache_manager.CacheManager.dump_debug_memory') as mock_dump:
+            
+            # Set up mocks
+            mock_process.return_value = {"test.md": "Processed content"}
+            mock_dump.return_value = True
+            mock_is_large.return_value = False
+            
+            # Create manager and set up test data
+            cm = CacheManager.get_instance()
+            cm.cache = {"global:default": {"test.md": "Original content"}}
+            
+            # Update the bank
+            result = cm.update_bank("global", "default", "New content")
+            
+            # Verify results
+            assert result["status"] == "success"
+            assert cm.pending_updates.get("global:default") is True
+            mock_process.assert_called_once()
+            cm.file_sync.schedule_sync.assert_called_once()
+            mock_dump.assert_called_once()
 
 
 @patch('memory_bank.cache_manager.cache_manager.CacheManager._process_content')
@@ -189,10 +222,7 @@ def test_get_error_history():
     assert result[9]["description"] == "Error 19"
 
 
-@patch('builtins.open')
-@patch('json.dump')
-@patch('pathlib.Path.mkdir')
-def test_dump_debug_memory(mock_mkdir, mock_dump, mock_open):
+def test_dump_debug_memory():
     """Test dump_debug_memory functionality."""
     cm = CacheManager.get_instance(debug_memory_dump=True)
     
@@ -202,26 +232,155 @@ def test_dump_debug_memory(mock_mkdir, mock_dump, mock_open):
         "project:test": {"file3.md": "C" * 3000}
     }
     
+    # Mock file_sync.write_debug_dump
+    cm.file_sync.write_debug_dump = MagicMock(return_value=True)
+    
     # Call the method
-    cm.dump_debug_memory()
+    result = cm.dump_debug_memory()
     
     # Verify behavior
-    mock_mkdir.assert_called_once()
-    mock_open.assert_called_once()
-    mock_dump.assert_called_once()
-    args, kwargs = mock_dump.call_args
-    assert args[0] == cm.cache  # First arg should be the cache
+    assert result is True
+    cm.file_sync.write_debug_dump.assert_called_once_with(cm.cache, cm.debug_dump_path)
 
 
 def test_dump_debug_memory_disabled():
     """Test dump_debug_memory when disabled."""
-    cm = CacheManager.get_instance(debug_memory_dump=False)
+    # Reset the singleton
+    CacheManager._instance = None
     
-    # Mock methods to verify they're not called
-    cm._get_cache_size = MagicMock()
+    # Create a proper mock for FileSynchronizer
+    with patch('memory_bank.cache_manager.cache_manager.FileSynchronizer') as mock_sync_class:
+        # Create mock instance with proper methods
+        mock_sync = MagicMock()
+        mock_sync_class.return_value = mock_sync
+        
+        # Create manager with debug_memory_dump disabled
+        cm = CacheManager.get_instance(debug_memory_dump=False)
+        
+        # Call the method
+        result = cm.dump_debug_memory()
+        
+        # Verify behavior
+        assert result is False
+        cm.file_sync.write_debug_dump.assert_not_called()
+
+
+def test_sync_to_disk():
+    """Test _sync_to_disk functionality."""
+    cm = CacheManager.get_instance()
     
-    # Call the method
-    cm.dump_debug_memory()
+    # Set up test data
+    cm.cache = {"global:default": {"test.md": "Test content"}}
     
-    # Verify behavior
-    cm._get_cache_size.assert_not_called()
+    # Mock the file_sync method
+    cm.file_sync.sync_to_disk = MagicMock(return_value=True)
+    
+    # Perform sync
+    result = cm._sync_to_disk("global", "default")
+    
+    # Verify results
+    assert result is True
+    cm.file_sync.sync_to_disk.assert_called_once()
+    assert "global:default" not in cm.pending_updates
+
+
+def test_sync_to_disk_error():
+    """Test _sync_to_disk with error condition."""
+    cm = CacheManager.get_instance()
+    cm.error_history = []  # Reset error history
+    
+    # Set up test data
+    cm.cache = {"global:default": {"test.md": "Test content"}}
+    cm.pending_updates = {"global:default": True}
+    
+    # Mock the file_sync method to simulate error
+    cm.file_sync.sync_to_disk = MagicMock(return_value=False)
+    
+    # Perform sync
+    result = cm._sync_to_disk("global", "default")
+    
+    # Verify results
+    assert result is False
+    cm.file_sync.sync_to_disk.assert_called_once()
+    assert "global:default" in cm.pending_updates  # Should still be pending
+    
+    
+def test_sync_all_pending():
+    """Test sync_all_pending functionality."""
+    cm = CacheManager.get_instance()
+    
+    # Set up test data
+    cm.cache = {
+        "global:default": {"test1.md": "Content 1"},
+        "project:test": {"test2.md": "Content 2"}
+    }
+    cm.pending_updates = {
+        "global:default": True,
+        "project:test": True
+    }
+    
+    # Mock the sync_to_disk method
+    cm._sync_to_disk = MagicMock(side_effect=[True, False])
+    
+    # Perform sync
+    results = cm.sync_all_pending()
+    
+    # Verify results
+    assert len(results) == 2
+    assert results["global:default"] is True
+    assert results["project:test"] is False
+    assert cm._sync_to_disk.call_count == 2
+
+
+def test_get_bank_root_path():
+    """Test _get_bank_root_path with various bank types."""
+    cm = CacheManager.get_instance()
+    
+    # Test global bank
+    path = cm._get_bank_root_path("global", "default")
+    assert path.name == "default"
+    assert path.parent.name == "global"
+    
+    # Test project bank
+    path = cm._get_bank_root_path("project", "test")
+    assert path.name == "test"
+    assert path.parent.name == "projects"
+    
+    # Test code bank
+    path = cm._get_bank_root_path("code", "repo")
+    assert path.name == "repo"
+    assert path.parent.name == "code"
+    
+    # Test invalid type
+    with pytest.raises(ValueError):
+        cm._get_bank_root_path("invalid", "test")
+
+
+def test_close():
+    """Test close method."""
+    # Reset the singleton
+    CacheManager._instance = None
+    
+    # Create a proper mock for FileSynchronizer
+    with patch('memory_bank.cache_manager.cache_manager.FileSynchronizer') as mock_sync_class:
+        # Create mock instance with proper methods
+        mock_sync = MagicMock()
+        mock_sync_class.return_value = mock_sync
+        
+        # Create manager and set up test data
+        cm = CacheManager.get_instance(debug_memory_dump=True)
+        
+        # Set up pending updates
+        cm.pending_updates = {"global:default": True}
+        
+        # Mock methods
+        with patch.object(cm, 'sync_all_pending') as mock_sync_all, \
+             patch.object(cm, 'dump_debug_memory') as mock_dump:
+            
+            # Close the cache manager
+            cm.close()
+            
+            # Verify behavior
+            mock_sync_all.assert_called_once()
+            cm.file_sync.stop.assert_called_once()
+            mock_dump.assert_called_once()

@@ -1,11 +1,13 @@
 """
 Content analysis module for memory bank.
 
-Provides content categorization and file targeting logic.
+Provides content categorization and file targeting logic with support for
+both LLM-based and rule-based processing strategies.
 """
 
 import re
-from typing import Dict, Any, Tuple, List
+import asyncio
+from typing import Dict, Any, Tuple, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -145,6 +147,47 @@ class ContentAnalyzer:
     }
     
     @classmethod
+    async def process_content(cls, content: str, existing_cache: Dict[str, str], 
+                        bank_type: str, processor_preference: str = "auto") -> Dict[str, Any]:
+        """Process content using the appropriate processor.
+        
+        This is the main entry point for content processing in the memory bank.
+        It uses either LLM-based or rule-based processing based on preference
+        and availability.
+        
+        Args:
+            content: Text content to process
+            existing_cache: Existing memory bank content
+            bank_type: Type of bank (global, project, code)
+            processor_preference: Processor preference: "auto", "llm", or "rule"
+            
+        Returns:
+            Dict with processing results including target_file, operation, etc.
+        """
+        # Import here to avoid circular imports
+        from memory_bank.content.processors import get_content_processor
+        
+        # Get the appropriate processor
+        processor = get_content_processor(processor_preference)
+        
+        try:
+            # Process the content
+            result = await processor.process_content(content, existing_cache, bank_type)
+            logger.info(f"Content processed using {processor.__class__.__name__}")
+            
+            # Cleanup resources if needed (e.g., for LLM processor)
+            if hasattr(processor, 'close'):
+                await processor.close()
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error processing content: {e}")
+            # Fallback to basic content analysis in case of error
+            logger.info("Falling back to basic content analysis")
+            return cls.determine_target_file(bank_type, content)
+    
+    @classmethod
     def analyze_content(cls, content: str) -> Tuple[str, float]:
         """Analyze content to determine its primary category.
         
@@ -194,6 +237,9 @@ class ContentAnalyzer:
     def determine_target_file(cls, bank_type: str, content: str) -> Dict[str, Any]:
         """Determine target file and operation based on content analysis.
         
+        This method is maintained for backward compatibility and is used as a fallback
+        when the processors are unavailable or encounter errors.
+        
         Args:
             bank_type: Type of bank (global, project, code)
             content: Content to analyze
@@ -227,3 +273,23 @@ class ContentAnalyzer:
             "category": category,
             "confidence": confidence
         }
+        
+    @classmethod
+    def extract_key_concepts(cls, content: str) -> Dict[str, List[str]]:
+        """Extract key concepts from content.
+        
+        This is a basic implementation maintained for backward compatibility.
+        For more advanced concept extraction, use a ContentProcessor.
+        
+        Args:
+            content: Content to analyze
+            
+        Returns:
+            Dict mapping concept categories to lists of key concepts
+        """
+        # Import here to avoid circular imports
+        from memory_bank.content.processors import get_content_processor
+        
+        # Get a rule-based processor for synchronous operation
+        processor = get_content_processor("rule")
+        return processor.extract_key_concepts(content)

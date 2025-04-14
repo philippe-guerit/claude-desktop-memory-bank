@@ -1,7 +1,7 @@
 """
-Activate tool implementation.
+Activate tool implementation with Cache Manager integration.
 
-This module provides the activate tool for activating memory banks.
+This module provides the activate tool for activating memory banks with in-memory cache support.
 """
 
 from typing import Dict, Any, Optional
@@ -11,6 +11,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData
+
+from memory_bank.cache_manager.cache_manager import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,8 @@ def register_activate_tool(server: FastMCP, storage):
         server: MCP server instance
         storage: Storage manager instance
     """
+    # Get the cache manager singleton instance
+    cache_manager = CacheManager.get_instance()
     
     @server.tool(
         name="activate",
@@ -116,15 +120,36 @@ def register_activate_tool(server: FastMCP, storage):
                     # No path hint, use standard project
                     bank_id = normalized_project_name
             
-            # Load or create memory bank
-            bank = storage.get_bank(bank_type, bank_id, repo_path)
-            if not bank:
-                # Create a new bank
-                bank = storage.create_bank(bank_type, bank_id, repo_path)
+            # Phase 4 Enhancement: Check if bank exists in cache first
+            cache_hit = cache_manager.has_bank(bank_type, bank_id)
+            logger.info(f"Cache {'' if cache_hit else 'not '}found for {bank_type}:{bank_id}")
+            
+            if cache_hit:
+                # Get content from cache
+                content = cache_manager.get_bank(bank_type, bank_id)
+                logger.info(f"Loaded content from cache for {bank_type}:{bank_id}")
                 
-                # Initialize project information if provided
-                if bank_type in ["project", "code"] and project_name and project_description:
-                    bank.update_file("readme.md", f"""# {project_name}
+                # Get bank from storage for additional information
+                bank = storage.get_bank(bank_type, bank_id, repo_path)
+                
+                # If bank doesn't exist in storage but exists in cache,
+                # we might be in an inconsistent state, but we'll use the cache
+                if not bank:
+                    logger.warning(f"Bank {bank_type}:{bank_id} exists in cache but not in storage")
+                    # Create a new bank
+                    bank = storage.create_bank(bank_type, bank_id, repo_path)
+                    if not bank:
+                        raise Exception(f"Failed to create bank {bank_type}:{bank_id}")
+            else:
+                # Load or create memory bank from storage
+                bank = storage.get_bank(bank_type, bank_id, repo_path)
+                if not bank:
+                    # Create a new bank
+                    bank = storage.create_bank(bank_type, bank_id, repo_path)
+                    
+                    # Initialize project information if provided
+                    if bank_type in ["project", "code"] and project_name and project_description:
+                        bank.update_file("readme.md", f"""# {project_name}
 
 ## Project Overview
 {project_description}
@@ -135,30 +160,68 @@ Project goals and objectives.
 ## Stakeholders
 Key stakeholders and their roles.
 """, "replace")
-            
-            # Load content from all files
-            content = bank.load_all_content()
+                
+                # Load content from all files
+                content = bank.load_all_content()
+                
+                # Update cache with content from storage
+                # This will trigger a cache update for future use
+                update_result = cache_manager.update_bank(
+                    bank_type,
+                    bank_id,
+                    "",  # No new content to add
+                    immediate_sync=False
+                )
+                if update_result["status"] == "error":
+                    logger.warning(f"Failed to update cache for {bank_type}:{bank_id}: {update_result.get('error')}")
             
             # Get custom instructions for this bank type
             custom_instructions = bank.get_custom_instructions()
             
+            # Get previous errors from cache manager
+            previous_errors = cache_manager.get_error_history()
+            
+            # Calculate approximate token count for content
+            total_chars = sum(len(content_str) for content_str in content.values())
+            approximate_tokens = total_chars // 4  # Rough estimate: 1 token ≈ 4 characters
+            
+            # Determine if cache optimization might be needed
+            optimization_recommended = approximate_tokens > 6000  # Recommend optimization above 6K tokens
+            
+            # Enhanced response with cache information
             return {
                 "status": "success",
                 "bank_info": {
                     "type": bank_type,
                     "id": bank_id,
                     "files": bank.list_files(),
-                    "last_updated": bank.last_updated().isoformat()
+                    "last_updated": bank.last_updated().isoformat(),
+                    "cache_info": {
+                        "cache_hit": cache_hit,
+                        "approximate_tokens": approximate_tokens,
+                        "optimization_recommended": optimization_recommended
+                    }
                 },
                 "content": content,
-                "custom_instructions": custom_instructions
+                "custom_instructions": custom_instructions,
+                "previous_errors": previous_errors
             }
             
         except Exception as e:
             logger.error(f"Error activating memory bank: {e}")
+            
+            # Get error history from cache manager if available
+            previous_errors = []
+            try:
+                previous_errors = cache_manager.get_error_history()
+            except Exception:
+                pass
+            
+            # Include error history in the error response
             raise McpError(
                 ErrorData(
                     code=-32000,  # General error code for activation failure
-                    message=f"Failed to activate memory bank: {str(e)}"
+                    message=f"Failed to activate memory bank: {str(e)}",
+                    data={"previous_errors": previous_errors}
                 )
             )

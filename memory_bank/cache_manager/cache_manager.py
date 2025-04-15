@@ -2,17 +2,20 @@
 Cache manager implementation.
 
 This module provides the CacheManager class for managing in-memory cache of memory banks.
+Enhanced with diagnostics and monitoring capabilities.
 """
 
-import json
 import logging
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
-import threading
-import time
+from typing import Dict, Any, Optional, List
 
 from .file_sync import FileSynchronizer
+from .bank_operations import BankOperations
+from .content_processing import ContentProcessor
+from .core_operations import CoreOperations
+from .cache_diagnostics import CacheDiagnostics
+from memory_bank.utils.recovery import ConsistencyChecker
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +39,13 @@ class CacheManager:
             cls._instance = CacheManager(debug_memory_dump)
         return cls._instance
     
-    def __init__(self, debug_memory_dump=True, sync_interval=60):
+    def __init__(self, debug_memory_dump=True, sync_interval=60, enable_diagnostics=True):
         """Initialize the cache manager with optional debug dump support.
         
         Args:
             debug_memory_dump: Whether to enable memory dump for debugging
             sync_interval: Interval in seconds between automatic synchronizations
+            enable_diagnostics: Whether to enable enhanced diagnostics
         """
         # If singleton already exists, return that instance
         if CacheManager._instance is not None:
@@ -51,6 +55,24 @@ class CacheManager:
         self.debug_memory_dump = debug_memory_dump
         self.pending_updates = {}  # Track updates pending disk synchronization
         self.error_history = []  # Store recent processing errors (max 100)
+        self.enable_diagnostics = enable_diagnostics
+        
+        # Operation counters for diagnostics
+        self.operation_counts = {
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "load_operations": 0,
+            "update_operations": 0,
+            "sync_operations": 0,
+            "sync_failures": 0
+        }
+        
+        # Performance timing tracking
+        self.operation_timings = {
+            "load_ms": [],
+            "update_ms": [],
+            "sync_ms": []
+        }
         
         # Initialize file synchronizer
         self.file_sync = FileSynchronizer(sync_interval=sync_interval)
@@ -63,8 +85,20 @@ class CacheManager:
         # Debug dump path
         self.debug_dump_path = self.storage_root / "cache_memory_dump.json"
         
+        # Diagnostics directory
+        self.diagnostics_dir = self.storage_root / "diagnostics"
+        self.diagnostics_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize consistency checker
+        if enable_diagnostics:
+            self.consistency_checker = ConsistencyChecker(self.storage_root)
+        
+        # Start time for uptime tracking
+        self.start_time = datetime.now(UTC)
+        
+        # Enhanced logging
         logger.info(f"Cache Manager initialized with debug_memory_dump={debug_memory_dump}, " +
-                    f"sync_interval={sync_interval}s")
+                    f"sync_interval={sync_interval}s, enable_diagnostics={enable_diagnostics}")
     
     def get_bank_key(self, bank_type: str, bank_id: str) -> str:
         """Generate a unique key for a bank.
@@ -88,7 +122,17 @@ class CacheManager:
         Returns:
             True if the bank exists in the cache, False otherwise
         """
-        return self.get_bank_key(bank_type, bank_id) in self.cache
+        key = self.get_bank_key(bank_type, bank_id)
+        exists = key in self.cache
+        
+        # Record cache hit/miss metrics if diagnostics enabled
+        if self.enable_diagnostics:
+            if exists:
+                self.operation_counts["cache_hits"] += 1
+            else:
+                self.operation_counts["cache_misses"] += 1
+                
+        return exists
     
     def get_bank(self, bank_type: str, bank_id: str) -> Dict[str, str]:
         """Get a bank from the cache or load it if missing.
@@ -100,12 +144,14 @@ class CacheManager:
         Returns:
             Dict containing bank content
         """
-        key = self.get_bank_key(bank_type, bank_id)
-        if key not in self.cache:
-            # Load from disk and build cache
-            self._load_bank_from_disk(bank_type, bank_id)
-        
-        return self.cache.get(key, {})
+        return CoreOperations.bank_get_operation(
+            bank_type, bank_id,
+            self.cache,
+            self._load_bank_from_disk,
+            self.operation_timings,
+            self.operation_counts,
+            self.enable_diagnostics
+        )
     
     def update_bank(self, bank_type: str, bank_id: str, content: str, 
                     immediate_sync: bool = False) -> Dict[str, Any]:
@@ -120,60 +166,22 @@ class CacheManager:
         Returns:
             Dict containing status information
         """
-        key = self.get_bank_key(bank_type, bank_id)
-        if key not in self.cache:
-            self._load_bank_from_disk(bank_type, bank_id)
-        
-        # Process the content and update in-memory cache
-        try:
-            updated_content = self._process_content(content, self.cache.get(key, {}), bank_type)
-            self.cache[key] = self._merge_content(self.cache.get(key, {}), updated_content)
-            self.pending_updates[key] = True
-            
-            # Schedule disk synchronization
-            priority = immediate_sync or self._is_large_update(updated_content)
-            self.file_sync.schedule_sync(bank_type, bank_id, priority=priority)
-            
-            # If it's a high-priority update, sync now
-            if priority:
-                self._sync_to_disk(bank_type, bank_id)
-            
-            # Write debug memory dump
-            self.dump_debug_memory()
-            
-            return {"status": "success"}
-            
-        except Exception as e:
-            error = {
-                "timestamp": datetime.now(UTC).isoformat(),
-                "description": str(e),
-                "severity": "error"
-            }
-            self.error_history.append(error)
-            
-            # Keep error history at a reasonable size
-            if len(self.error_history) > 100:
-                self.error_history = self.error_history[-100:]
-            
-            logger.error(f"Error updating cache for bank {bank_type}:{bank_id}: {e}")
-            
-            # Error history is returned to client on next operation call
-            return {"status": "error", "error": str(e)}
-    
-    def _is_large_update(self, content: Dict[str, str]) -> bool:
-        """Determine if this is a large update that should trigger immediate sync.
-        
-        Args:
-            content: New content being added
-            
-        Returns:
-            True if this is a large update, False otherwise
-        """
-        # Calculate the total size of the update
-        total_size = sum(len(c) for c in content.values())
-        
-        # Consider updates over 2KB as large
-        return total_size > 2048
+        return CoreOperations.update_bank_operation(
+            bank_type, bank_id, content,
+            self.cache,
+            self.pending_updates,
+            self.error_history,
+            ContentProcessor.process_content,
+            ContentProcessor.merge_content,
+            BankOperations.is_large_update,
+            self.file_sync,
+            self._sync_to_disk,
+            self.dump_debug_memory,
+            self.operation_timings,
+            self.operation_counts,
+            self.enable_diagnostics,
+            immediate_sync
+        )
     
     def _load_bank_from_disk(self, bank_type: str, bank_id: str) -> None:
         """Load bank content from disk files into memory cache.
@@ -182,136 +190,18 @@ class CacheManager:
             bank_type: Type of bank (global, project, code)
             bank_id: Bank identifier
         """
-        logger.info(f"Loading bank {bank_type}:{bank_id} from disk")
+        BankOperations.load_bank_from_disk(
+            bank_type, bank_id, 
+            self.storage_root, 
+            self.cache, 
+            self.file_sync.last_sync_time, 
+            self.error_history,
+            self.enable_diagnostics,
+            self.operation_counts
+        )
         
-        try:
-            # Import here to avoid circular imports
-            from memory_bank.storage.manager import StorageManager
-            
-            # Get the storage manager
-            storage = StorageManager(self.storage_root)
-            
-            # Get the bank
-            bank = storage.get_bank(bank_type, bank_id)
-            if not bank:
-                # Create the bank if it doesn't exist
-                bank = storage.create_bank(bank_type, bank_id)
-            
-            # Load content
-            content = bank.load_all_content()
-            
-            # Store in cache
-            key = self.get_bank_key(bank_type, bank_id)
-            self.cache[key] = content
-            
-            # Record the load time in the synchronizer
-            self.file_sync.last_sync_time[key] = datetime.now(UTC)
-            
-            # Write debug memory dump
-            self.dump_debug_memory()
-            
-            logger.info(f"Successfully loaded bank {bank_type}:{bank_id} from disk")
-            
-        except Exception as e:
-            logger.error(f"Error loading bank {bank_type}:{bank_id} from disk: {e}")
-            
-            # Create an empty cache entry to prevent repeated load attempts
-            key = self.get_bank_key(bank_type, bank_id)
-            self.cache[key] = {}
-            
-            # Add to error history
-            error = {
-                "timestamp": datetime.now(UTC).isoformat(),
-                "description": f"Failed to load bank {bank_type}:{bank_id} from disk: {str(e)}",
-                "severity": "error"
-            }
-            self.error_history.append(error)
-            
-            # Keep error history at a reasonable size
-            if len(self.error_history) > 100:
-                self.error_history = self.error_history[-100:]
-    
-    def _process_content(self, content: str, existing_cache: Dict[str, str], bank_type: str = "global") -> Dict[str, str]:
-        """Process content using ContentAnalyzer with LLM-based or rule-based processing.
-        
-        Args:
-            content: New content to process
-            existing_cache: Existing cache content
-            bank_type: Type of bank (global, project, code)
-            
-        Returns:
-            Processed content as a dict mapping file paths to content
-        """
-        try:
-            # Import the new components from Phase 5
-            from memory_bank.content.content_analyzer import ContentAnalyzer
-            from memory_bank.content.async_bridge import AsyncBridge
-            
-            # Use the AsyncBridge to safely call the async ContentAnalyzer
-            try:
-                processing_result = AsyncBridge.process_content_sync(
-                    ContentAnalyzer.process_content,
-                    content,
-                    existing_cache,
-                    bank_type
-                )
-                
-                # Convert the result to the format expected by the cache manager
-                if processing_result and "target_file" in processing_result:
-                    target_file = processing_result.get("target_file", "context.md")
-                    file_content = processing_result.get("content", content)
-                    
-                    # Create a dict with the target file as key
-                    return {target_file: file_content}
-                    
-            except Exception as e:
-                logger.warning(f"Error using AsyncBridge for content processing: {e}")
-                logger.info("Falling back to rule-based processing")
-            
-            # Fallback to rule-based processing if ContentAnalyzer integration fails
-            return self._process_with_rules(content, existing_cache)
-            
-        except Exception as e:
-            logger.error(f"Error processing content: {e}")
-            logger.info("Falling back to rule-based processing")
-            return self._process_with_rules(content, existing_cache)
-    
-    def _process_with_rules(self, content: str, existing_cache: Dict[str, str]) -> Dict[str, str]:
-        """Process content with rule-based approach.
-        
-        Args:
-            content: New content to process
-            existing_cache: Existing cache content
-            
-        Returns:
-            Processed content as a dict mapping file paths to content
-        """
-        # In Phase 1, return a simple structure with context.md as the target
-        # This will be enhanced in Phase 5 with proper content processing
-        return {"context.md": content}
-    
-    def _merge_content(self, existing_content: Dict[str, str], new_content: Dict[str, str]) -> Dict[str, str]:
-        """Merge new content with existing content.
-        
-        Args:
-            existing_content: Existing content in the cache
-            new_content: New content to merge
-            
-        Returns:
-            Merged content
-        """
-        result = existing_content.copy()
-        
-        # For each file in new content
-        for file_path, content in new_content.items():
-            if file_path in result:
-                # Append to existing file
-                result[file_path] = result[file_path] + "\n\n" + content
-            else:
-                # Create new file
-                result[file_path] = content
-        
-        return result
+        # Write debug memory dump
+        self.dump_debug_memory()
     
     def _sync_to_disk(self, bank_type: str, bank_id: str) -> bool:
         """Synchronize a bank to disk.
@@ -323,45 +213,19 @@ class CacheManager:
         Returns:
             True if sync was successful, False otherwise
         """
-        key = self.get_bank_key(bank_type, bank_id)
-        if key not in self.cache:
-            logger.warning(f"Cannot sync bank {key} to disk: not in cache")
-            return False
+        consistency_checker = self.consistency_checker if self.enable_diagnostics else None
         
-        try:
-            # Determine bank root path
-            bank_root = self._get_bank_root_path(bank_type, bank_id)
-            
-            # Sync to disk using the file synchronizer
-            success = self.file_sync.sync_to_disk(
-                bank_type, bank_id, self.cache[key], bank_root
-            )
-            
-            if success:
-                # Clear pending update flag
-                self.pending_updates.pop(key, None)
-                logger.info(f"Successfully synced bank {key} to disk")
-            else:
-                logger.error(f"Failed to sync bank {key} to disk")
-                
-            return success
-            
-        except Exception as e:
-            logger.error(f"Error syncing bank {key} to disk: {e}")
-            
-            # Add to error history
-            error = {
-                "timestamp": datetime.now(UTC).isoformat(),
-                "description": f"Failed to sync bank {key} to disk: {str(e)}",
-                "severity": "error"
-            }
-            self.error_history.append(error)
-            
-            # Keep error history at a reasonable size
-            if len(self.error_history) > 100:
-                self.error_history = self.error_history[-100:]
-                
-            return False
+        return BankOperations.sync_to_disk(
+            bank_type, bank_id, 
+            self.cache,
+            self.file_sync, 
+            self.pending_updates, 
+            self.error_history,
+            self.enable_diagnostics,
+            self.operation_counts,
+            self.operation_timings,
+            consistency_checker
+        )
     
     def sync_all_pending(self) -> Dict[str, bool]:
         """Synchronize all banks with pending updates to disk.
@@ -369,39 +233,10 @@ class CacheManager:
         Returns:
             Dict mapping bank keys to sync success status
         """
-        results = {}
-        
-        for key in list(self.pending_updates.keys()):
-            # Parse bank type and ID from key
-            parts = key.split(":", 1)
-            if len(parts) != 2:
-                logger.error(f"Invalid bank key format: {key}")
-                results[key] = False
-                continue
-                
-            bank_type, bank_id = parts
-            results[key] = self._sync_to_disk(bank_type, bank_id)
-            
-        return results
-    
-    def _get_bank_root_path(self, bank_type: str, bank_id: str) -> Path:
-        """Get the root path for a bank on disk.
-        
-        Args:
-            bank_type: Type of bank (global, project, code)
-            bank_id: Bank identifier
-            
-        Returns:
-            Path to the bank's root directory
-        """
-        if bank_type == "global":
-            return self.storage_root / "global" / bank_id
-        elif bank_type == "project":
-            return self.storage_root / "projects" / bank_id
-        elif bank_type == "code":
-            return self.storage_root / "code" / bank_id
-        else:
-            raise ValueError(f"Unknown bank type: {bank_type}")
+        return CoreOperations.sync_all_pending_banks(
+            self.pending_updates,
+            self._sync_to_disk
+        )
     
     def get_error_history(self) -> list:
         """Return recent processing errors.
@@ -435,8 +270,36 @@ class CacheManager:
         Returns:
             True if dump was successful, False otherwise
         """
-        if not self.debug_memory_dump:
-            return False
+        return CacheDiagnostics.dump_debug_memory(self)
         
-        # Write debug memory dump
-        return self.file_sync.write_debug_dump(self.cache, self.debug_dump_path)
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Get diagnostic information about the cache manager.
+        
+        Returns:
+            Dict containing diagnostic information
+        """
+        return CacheDiagnostics.get_diagnostics(self)
+        
+    def perform_consistency_check(self, bank_type: Optional[str] = None, 
+                                bank_id: Optional[str] = None) -> Dict[str, Any]:
+        """Perform a consistency check on one or all banks.
+        
+        Args:
+            bank_type: Type of bank to check, or None to check all
+            bank_id: ID of bank to check, or None to check all of given type
+            
+        Returns:
+            Dict containing check results
+        """
+        return CacheDiagnostics.perform_consistency_check(self, bank_type, bank_id)
+    
+    def export_diagnostics(self, path: Optional[Path] = None) -> bool:
+        """Export diagnostic information to a file.
+        
+        Args:
+            path: Path to write the diagnostics file, or None to use default
+            
+        Returns:
+            True if export was successful, False otherwise
+        """
+        return CacheDiagnostics.export_diagnostics(self, path)

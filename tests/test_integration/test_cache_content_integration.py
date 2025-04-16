@@ -103,30 +103,9 @@ class TestCacheContentIntegration:
         assert "doc/architecture.md" in bank_content
         assert "# Test Content" in bank_content["doc/architecture.md"]
     
-    def test_fallback_to_rule_based_processing(self, cache_manager, mock_content_analyzer):
-        """Test fallback to rule-based processing when async processing fails."""
-        # Make ContentAnalyzer.process_content raise an exception
-        async def failing_process(*args, **kwargs):
-            raise ValueError("Test failure")
-            
-        mock_content_analyzer.process_content.side_effect = failing_process
-        
-        # Setup test data
-        bank_type = "project"
-        bank_id = "test_project"
-        content = """# Architecture Decision
-        
-        We've decided to use a microservice architecture for this project."""
-        
-        # Update the bank - this should fall back to rule-based processing
-        with patch.object(cache_manager, '_process_with_rules') as mock_rules:
-            mock_rules.return_value = {"context.md": "Fallback content"}
-            
-            result = cache_manager.update_bank(bank_type, bank_id, content)
-            
-            # Verify the fallback was used
-            mock_rules.assert_called_once()
-            assert result["status"] == "success"
+    # Redundant test removed - this functionality is already tested in:
+    # 1. test_llm_processing_fallback in test_content_processing.py
+    # 2. test_llm_not_configured_fallback in test_llm_processor.py
     
     @pytest.mark.asyncio
     async def test_async_content_processing_integration(self, cache_manager):

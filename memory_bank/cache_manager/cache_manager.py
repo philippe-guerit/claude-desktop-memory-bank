@@ -74,13 +74,13 @@ class CacheManager:
             "sync_ms": []
         }
         
-        # Initialize file synchronizer
-        self.file_sync = FileSynchronizer(sync_interval=sync_interval)
-        self.file_sync.start()
-        
         # Storage root path
         self.storage_root = Path.home() / ".claude-desktop" / "memory"
         self.storage_root.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize file synchronizer
+        self.file_sync = FileSynchronizer(sync_interval=sync_interval, storage_root=self.storage_root)
+        self.file_sync.start()
         
         # Debug dump path
         self.debug_dump_path = self.storage_root / "cache_memory_dump.json"

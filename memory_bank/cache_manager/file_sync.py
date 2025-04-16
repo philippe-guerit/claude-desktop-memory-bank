@@ -12,7 +12,7 @@ import time
 from datetime import datetime, UTC
 from pathlib import Path
 from queue import Queue, Empty
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +20,22 @@ logger = logging.getLogger(__name__)
 class FileSynchronizer:
     """Handles synchronization between in-memory cache and disk files."""
     
-    def __init__(self, sync_interval: int = 60):
+    def __init__(self, sync_interval: int = 60, storage_root: Optional[Path] = None):
         """Initialize the file synchronizer.
         
         Args:
             sync_interval: Interval in seconds between sync operations
+            storage_root: Root path for file storage, defaults to ~/.claude-desktop/memory
         """
         self.sync_interval = sync_interval
         self.sync_queue = Queue()
         self.running = False
         self.sync_thread = None
         self.last_sync_time = {}
+        
+        # Set storage root (default to ~/.claude-desktop/memory if not provided)
+        self.storage_root = storage_root or Path.home() / ".claude-desktop" / "memory"
+        self.storage_root.mkdir(parents=True, exist_ok=True)
     
     def start(self):
         """Start the synchronization thread."""

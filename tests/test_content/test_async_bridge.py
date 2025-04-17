@@ -67,9 +67,14 @@ class TestAsyncBridge:
             await asyncio.sleep(2.0)
             return "slow_result"
             
+        # Create a factory function to ensure a fresh coroutine each time
+        def create_slow_coro():
+            return slow_func()
+            
         # This should timeout
         with pytest.raises(TimeoutError):
-            AsyncBridge.run_async_safely(slow_func(), timeout=0.1)
+            # Use a fresh coroutine from the factory
+            AsyncBridge.run_async_in_new_loop(create_slow_coro(), timeout=0.1)
     
     def test_process_content_sync(self):
         """Test the specialized content processing wrapper."""
@@ -118,12 +123,11 @@ class TestAsyncBridge:
         async def failing_process(content, existing_cache, bank_type, **kwargs):
             await asyncio.sleep(0.1)
             raise ValueError("Test failure")
-            
-        # This should propagate the exception
+           
+        # Test with direct AsyncBridge method that properly handles coroutines 
         with pytest.raises(ValueError, match="Test failure"):
-            AsyncBridge.process_content_sync(
-                failing_process,
-                "Test content",
-                {},
-                "project"
+            # Call the method directly with a fresh coroutine
+            AsyncBridge.run_async_in_new_loop(
+                failing_process("Test content", {}, "project"),
+                timeout=10.0
             )

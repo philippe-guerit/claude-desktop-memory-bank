@@ -6,10 +6,12 @@ import pytest
 import asyncio
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any
+import logging
 
 from memory_bank.content.processors import LLMProcessor, ContentProcessor
 from memory_bank.utils.service_config import ApiStatus
 
+logger = logging.getLogger(__name__)
 
 class TestLLMProcessor:
     """Tests for the LLM-based processor."""
@@ -21,11 +23,23 @@ class TestLLMProcessor:
             optimizer_instance = MagicMock()
             # Setup mock for call_llm
             optimizer_instance.call_llm = MagicMock()
-            optimizer_instance.call_llm.return_value = asyncio.Future()
-            optimizer_instance.call_llm.return_value.set_result(
+            
+            # Create a new event loop for this fixture if one doesn't exist
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # If there's no event loop in the current thread, create one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # Now create the future with the event loop
+            future = loop.create_future()
+            future.set_result(
                 '{"target_file": "doc/architecture.md", "operation": "append", '
                 '"content": "Formatted content", "category": "technology"}'
             )
+            optimizer_instance.call_llm.return_value = future
+            
             mock_optimizer.return_value = optimizer_instance
             yield mock_optimizer
 

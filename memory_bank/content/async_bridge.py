@@ -44,8 +44,13 @@ class AsyncBridge:
             TimeoutError: If the operation times out
             Exception: Any exception raised by the coroutine
         """
+        # In Python 3.12, we need to ensure the coroutine is only awaited once
+        # We do this by wrapping it in a function that gets executed by asyncio.run
+        async def run_with_timeout():
+            return await asyncio.wait_for(coro, timeout)
+            
         try:
-            return asyncio.run(asyncio.wait_for(coro, timeout))
+            return asyncio.run(run_with_timeout())
         except asyncio.TimeoutError as e:
             raise TimeoutError(f"Operation timed out after {timeout}s") from e
     
@@ -67,7 +72,11 @@ class AsyncBridge:
             Exception: Any exception raised by the coroutine
         """
         try:
-            return loop.run_until_complete(asyncio.wait_for(coro, timeout))
+            # Wrap the coroutine to avoid "cannot reuse already awaited coroutine" errors
+            async def wrapper():
+                return await asyncio.wait_for(coro, timeout)
+                
+            return loop.run_until_complete(wrapper())
         except asyncio.TimeoutError as e:
             raise TimeoutError(f"Operation timed out after {timeout}s") from e
     
@@ -89,8 +98,12 @@ class AsyncBridge:
             TimeoutError: If the operation times out
             Exception: Any exception raised by the coroutine
         """
+        # In Python 3.12, we need to wrap the coroutine in another async function
+        # to avoid "cannot reuse already awaited coroutine" errors
         def run_coro():
-            return asyncio.run(coro)
+            async def wrapper():
+                return await coro
+            return asyncio.run(wrapper())
             
         future = AsyncBridge._executor.submit(run_coro)
         try:
@@ -172,10 +185,11 @@ class AsyncBridge:
             Exception: Any exception raised during processing
         """
         try:
-            # Call the async function and get the coroutine
+            # Create the coroutine - this is a one-time use object
             coro = async_process_func(content, existing_cache, bank_type, **kwargs)
             
             # Run the coroutine synchronously using our helper
+            # The run_async_safely method now properly handles wrapping the coroutine
             result = AsyncBridge.run_async_safely(coro, timeout=10.0)
             
             # Validate the result

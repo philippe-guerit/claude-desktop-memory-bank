@@ -4,12 +4,11 @@ This document provides a detailed reference for the Model Context Protocol (MCP)
 
 ## MCP Tools
 
-The Memory Bank implements four main tools:
+The Memory Bank implements three main tools:
 
 1. [activate](#activate): Activate a memory bank at conversation start
 2. [list](#list): List available memory banks
-3. [swap](#swap): Change the active memory bank
-4. [update](#update): Update memory bank content
+3. [update](#update): Update memory bank content
 
 ## Tool Reference
 
@@ -177,39 +176,7 @@ List only project memory banks:
 list(bank_type="project")
 ```
 
-### `swap`
 
-Changes the active memory bank for the current conversation.
-
-#### Parameters
-
-| Name | Type | Required | Description |
-| ---- | ---- | -------- | ----------- |
-| `bank_type` | string | Yes | Type of memory bank to swap to (`"global"`, `"project"`, or `"code"`) |
-| `bank_id` | string | Yes | Identifier for the specific memory bank to swap to |
-| `temporary` | boolean | No | If true, don't update this memory bank during session (default: false) |
-| `merge_files` | array of strings | No | Optional list of specific files to import rather than full bank |
-
-#### Returns
-
-Same as `activate`.
-
-#### Usage Examples
-
-Swap to a project memory bank:
-```javascript
-swap(bank_type="project", bank_id="project_y")
-```
-
-Temporarily swap to a code memory bank (read-only):
-```javascript
-swap(bank_type="code", bank_id="utils_lib", temporary=true)
-```
-
-Swap to a code memory bank with specific files:
-```javascript
-swap(bank_type="code", bank_id="project_x_repo", merge_files=["doc/api.md", "snippets.md"])
-```
 
 ### `update`
 
@@ -239,7 +206,50 @@ Updates the memory bank with new information from the conversation.
   "cache_updated": true,
   "cache_optimized": false,
   "verification": "// Update #3 for conversation conv-123",
-  "next_actions": []
+  "next_actions": [],
+  "previous_errors": []
+}
+```
+
+With error history (when applicable):
+
+```json
+{
+  "status": "success",
+  "updated_file": "doc/architecture.md",
+  "operation": "append",
+  "cache_updated": true,
+  "cache_optimized": false,
+  "verification": "// Update #3 for conversation conv-123",
+  "next_actions": [],
+  "previous_errors": [
+    {
+      "timestamp": "2025-04-10T14:32:10Z",
+      "description": "Failed to process content for doc/design.md", 
+      "severity": "warning"
+    },
+    {
+      "timestamp": "2025-04-10T14:30:05Z",
+      "description": "Disk synchronization delayed due to large content size", 
+      "severity": "info"
+    }
+  ]
+}
+```
+
+In case of error:
+
+```json
+{
+  "status": "error",
+  "error": "Failed to update content: Invalid operation type",
+  "previous_errors": [
+    {
+      "timestamp": "2025-04-10T14:35:22Z",
+      "description": "LLM processing failed, using fallback rule-based processing", 
+      "severity": "warning"
+    }
+  ]
 }
 ```
 
@@ -286,7 +296,7 @@ update(
 
 ## Custom Instructions
 
-The Memory Bank provides custom instructions through the `activate` and `swap` tools. These instructions help guide the assistant in using the memory bank effectively.
+The Memory Bank provides custom instructions through the `activate` tool. These instructions help guide the assistant in using the memory bank effectively.
 
 ### Directive Structure
 
@@ -363,7 +373,7 @@ Each memory bank type has a specific structure:
 - `context.md`: General context and themes
 - `preferences.md`: User preferences and patterns
 - `references.md`: Frequently referenced materials
-- `cache.json`: Optimized representation for LLM use
+- `cache_memory_dump.json`: Diagnostic memory dump (only in debug mode)
 
 ### Project Memory Bank
 
@@ -375,7 +385,7 @@ Each memory bank type has a specific structure:
 - `notes/meeting_notes.md`: Meeting summaries
 - `notes/ideas.md`: Brainstorming and ideas
 - `notes/research.md`: Research findings
-- `cache.json`: Optimized representation for LLM use
+- `cache_memory_dump.json`: Diagnostic memory dump (only in debug mode)
 
 ### Code Memory Bank
 
@@ -385,7 +395,7 @@ Each memory bank type has a specific structure:
 - `doc/api.md`: API documentation
 - `structure.md`: Code organization
 - `snippets.md`: Important code snippets
-- `cache.json`: Optimized representation for LLM use
+- `cache_memory_dump.json`: Diagnostic memory dump (only in debug mode)
 
 ## Error Handling
 
@@ -412,9 +422,45 @@ The server returns standard MCP error responses:
 - `"bank_not_found"`: Memory bank not found
 - `"activation_failed"`: Failed to activate memory bank
 - `"list_failed"`: Failed to list memory banks
-- `"swap_failed"`: Failed to swap memory bank
 - `"update_failed"`: Failed to update memory bank
 - `"invalid_operation"`: Invalid update operation
+- `"content_processing_failed"`: Failed to process content
+- `"disk_sync_failed"`: Failed to synchronize with disk
+- `"cache_load_failed"`: Failed to load bank into cache
+
+## Cache Architecture
+
+The Memory Bank server implements an in-memory cache architecture for improved performance:
+
+### Cache Manager
+
+The server uses a centralized Cache Manager with the following features:
+
+- **In-Memory Storage**: Memory banks are stored in a shared in-memory dictionary
+- **Unique Identification**: Memory banks are keyed by `{bank_type}:{bank_id}`
+- **Lazy Loading**: Banks are loaded from disk only when first accessed
+- **Background Synchronization**: Content is synchronized to disk asynchronously
+- **Configurable Timing**: Default synchronization interval is 60 seconds
+- **Immediate Sync Option**: Large updates trigger immediate synchronization
+- **Error Tracking**: Maintains history of recent errors for client reporting
+
+### Content Processing
+
+The server uses a dual-path approach for content processing:
+
+- **Primary Path (LLM-based)**: Uses LLM for content categorization and placement
+- **Fallback Path (Rule-based)**: Falls back to deterministic rules when LLM is unavailable
+- **Standard Interface**: Both paths use the same output schema for consistency
+- **Validation Layer**: Validates outputs against constraints before applying changes
+
+### Diagnostic Features
+
+For development and troubleshooting:
+
+- **Debug Memory Dumps**: When enabled, writes complete memory bank state to `cache_memory_dump.json`
+- **Error History**: Tracks and returns recent processing errors
+- **Token Count Metrics**: Logs approximate token count of memory banks
+- **Processing Path Tracking**: Records which path (LLM or rule-based) was used for each operation
 
 ## Protocol Optimization
 
@@ -423,7 +469,7 @@ The Memory Bank server implements a key optimization in the MCP protocol:
 ### Tools-Only Approach
 
 The server only registers tools through the MCP protocol:
-- Only tools (activate, list, swap, update) are formally registered
+- Only tools (activate, list, update) are formally registered
 - Prompts and resources are delivered directly through the `activate` tool response
 - No separate `mcp.discover` entries for prompts and resources
 
@@ -437,7 +483,7 @@ This optimization provides several advantages:
 
 ### Implementation Details
 
-- `activate` and `swap` tools return both context data and custom instructions
+- `activate` tool returns both context data and custom instructions
 - Custom instructions format isn't constrained by MCP prompt schema
 - Memory bank content delivered directly rather than through resource URIs
 - Server maintains internal resources/prompts without exposing through protocol

@@ -2,7 +2,21 @@
 
 A Model Context Protocol (MCP) server that provides autonomous memory persistence for Claude Desktop.
 
-**Version 2.0.0** - Updated April 2025
+**Version 2.1.0** - Updated April 2025
+
+## What's New
+
+### Version 2.1.0 - In-Memory Cache Architecture
+
+This release introduces a major performance improvement with a new in-memory cache architecture:
+
+- **High-Performance Caching**: Memory banks are now stored in memory for faster access and updates
+- **Asynchronous Processing**: Disk operations happen in the background without blocking client operations
+- **Enhanced Error Reporting**: Improved error tracking and reporting mechanisms
+- **Dual-Path Content Processing**: LLM-based primary path with rule-based fallback for reliability
+- **Intelligent Cache Optimization**: Smarter cache management with size thresholds and prioritization
+- **Diagnostic Tools**: Debug memory dumps for easier troubleshooting
+- **API Consistency**: All changes maintain backward compatibility with existing clients
 
 ## What is Claude Desktop Memory Bank?
 
@@ -227,9 +241,9 @@ This standardized structure simplifies client integration and makes it easier to
 
 The Memory Bank system implements the Model Context Protocol (MCP) v1.6.0+ with the following tools:
 
-- **activate**: Initializes and loads the appropriate memory bank at conversation start, with context-aware detection. Returns both context data and custom instructions.
+- **activate**: Initializes and loads the appropriate memory bank at conversation start, with context-aware detection. Returns both context data and custom instructions. Utilizes in-memory cache for better performance.
 - **list**: Lists all available memory banks of each type (global, project, code).
-- **update**: Updates memory bank content with new information, supporting targeted file updates and different operation types.
+- **update**: Updates memory bank content with new information, supporting targeted file updates and different operation types. Features enhanced content processing and error reporting mechanisms.
 
 ### Memory Bank Structure
 
@@ -243,7 +257,7 @@ Each memory bank type has a specific structure:
 ├── context.md                    # General context and themes
 ├── preferences.md                # User preferences and patterns
 ├── references.md                 # Frequently referenced materials
-└── cache.json                    # Optimized representation for LLM use
+└── cache_memory_dump.json        # Diagnostic memory dump (only in debug mode)
 ```
 
 #### Project Memory Bank
@@ -259,7 +273,7 @@ Each memory bank type has a specific structure:
 │   ├── meeting_notes.md          # Meeting summaries
 │   ├── ideas.md                  # Brainstorming and ideas
 │   └── research.md               # Research findings
-└── cache.json                    # Optimized representation for LLM use
+└── cache_memory_dump.json        # Diagnostic memory dump (only in debug mode)
 ```
 
 #### Code Memory Bank
@@ -272,7 +286,7 @@ Each memory bank type has a specific structure:
 │   └── api.md                    # API documentation
 ├── structure.md                  # Code organization
 ├── snippets.md                   # Important code snippets
-└── cache.json                    # Optimized representation for LLM use
+└── cache_memory_dump.json        # Diagnostic memory dump (only in debug mode)
 ```
 
 ## Autonomous Operation
@@ -316,22 +330,47 @@ These directives ensure that:
 
 The Memory Bank server implements a key optimization in the MCP protocol:
 
-- **Tools-Only Approach**: Server only registers tools through the MCP protocol (activate, list, swap, update)
+- **Tools-Only Approach**: Server only registers tools through the MCP protocol (activate, list, update)
 - **Prompt and Resource Delivery**: Prompts and resources delivered directly through the `activate` tool response
 - **Simplified Implementation**: Reduced protocol overhead and flexible formatting of custom instructions
 - **Single Delivery Mechanism**: Context data and custom instructions provided in a single response
+
+### In-Memory Cache Architecture
+
+The Memory Bank server features an improved, high-performance caching system:
+
+- **In-Memory Caching**: Implements a shared in-memory dictionary of active memory banks for faster access
+- **Intelligent Content Processing**: Uses primary (LLM-based) and fallback (rule-based) paths for optimal handling
+- **Asynchronous Disk Synchronization**: Memory banks are synchronized to disk at configurable intervals (default: 60 seconds)
+- **Error History Tracking**: Includes a lightweight error reporting mechanism that returns previous errors on subsequent calls
+- **Diagnostic Memory Dumps**: Optional debug mode that writes complete memory bank state to disk for troubleshooting
+- **Enhanced Content Organization**: Processes content using both LLM-based semantic analysis and deterministic rules
+- **Token-Count Optimization**: Automatically manages content size to maintain efficiency
+- **Continuous Optimization**: Scheduled optimization runs triggered by size thresholds or time intervals
 
 ### Cache Optimization
 
 The system automatically optimizes the memory bank cache for efficiency:
 
-- **Intelligent Cache Storage**: Cache files contain compressed/optimized version of the entire memory bank
+- **Intelligent Cache Storage**: In-memory cache contains the complete content from bank files
 - **Token Optimization**: Intelligent processing reduces token usage when accessing full context
 - **Automatic Optimization**: Cache is periodically optimized during updates using LLM processing
 - **Relationship Tracking**: Maintains connections between related pieces of information
 - **Inference-Based Updates**: Server analyzes partial updates to infer what needs to be updated elsewhere
 - **Smart Content Integration**: Server handles updates affecting multiple contexts automatically
 - **Optimized Memory Management**: LLM helps determine how new information impacts existing context
+- **Configurable Synchronization**: Synchronization interval can be customized based on usage patterns
+
+### Error Handling and Recovery
+
+The Memory Bank server includes enhanced error handling capabilities:
+
+- **Error History**: Tracks recent errors and returns them with subsequent tool responses
+- **Graceful Degradation**: Falls back to rule-based processing when LLM processing fails
+- **Validation Layer**: Verifies outputs against established constraints before applying changes
+- **Asynchronous Error Handling**: Processes errors without blocking client operations
+- **Simplified Error Reporting**: Returns clear, actionable error messages to clients
+- **Error Propagation**: Synchronization errors are reported to clients on subsequent operations
 
 ### Git Repository Integration
 

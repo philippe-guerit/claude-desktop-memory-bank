@@ -390,22 +390,93 @@ Our server's `mcp.discover` response provides information about available tools 
 
 ## Memory Bank Cache System with LLM Optimization
 
-A key feature of our design is the cache system that provides server-side intelligence for managing large memory banks:
+A key feature of our design is the in-memory cache architecture that provides performance improvements and server-side intelligence for managing large memory banks:
 
-1. **Inference-Based Updates**:
-   - Server analyzes partial updates to infer what needs to be updated elsewhere
-   - Reduces number of explicit tool calls needed from the client
-   - Makes each client update more efficient and impactful
+## In-Memory Cache Architecture
 
-2. **Smart Content Integration**:
-   - When updates affect multiple contexts, server handles relationships
-   - Cache maintains connections between related pieces of information
-   - LLM helps determine how new information impacts existing context
+**Centralized Cache Manager:**
+- Implements a shared in-memory dictionary of active memory banks
+- Keyed by `{bank_type}:{bank_id}` for unique identification
+- Contains complete content from the bank's files
+- Acts as the primary source of truth during operation
 
-3. **Cache Management**:
-   - `update` tool updates cache.json when changes occur
-   - LLM periodically optimizes cache based on accumulated changes
-   - Supports both full files and intelligent summaries of large content
+**Cache Evolution:**
+- The cache.json file has been superseded by cache_memory_dump.json
+- Existing tooling for cache.json can be repurposed for the new debug dump
+- No operational dependency on cache_memory_dump.json - purely diagnostic
+- Enabled by default during development (`debug_memory_dump=True`)
+
+**Debug Memory Dump:**
+- Optional memory dump to cache_memory_dump.json for troubleshooting
+- Enabled by default during development (debug_memory_dump=True)
+- Contains complete serialization of in-memory cache state
+- Not used for loading - purely diagnostic
+
+**Cache Lifecycle:**
+- Loaded during first activation or update
+- Updated synchronously in memory when content changes
+- Synchronized to markdown files on disk every 60 seconds (configurable parameter with default value)
+- If a large update is received, synchronization happens immediately after content processing
+- Risk of server failure between updates is accepted; no specific recovery procedures needed
+- Disk synchronization uses a FIFO queue to prevent race conditions between updates
+- Synchronization errors are propagated to clients through the error history mechanism
+
+## Coordinated Tool Implementation
+
+**Update Tool Enhancements:**
+- Automatically loads banks into cache if not already present
+- Adds content to memory first, then persists to disk
+- Uses fully asynchronous processing for all operations
+- Returns a simplified format with error history when issues occur
+- When content is updated, the cache is modified first, then persisted to disk
+- Includes a lightweight error reporting mechanism that returns previous errors on subsequent calls
+
+**Activate Tool Enhancements:**
+- Checks for existing cached banks before loading from disk
+- Provides optimized content from cache when available
+- Returns cache metadata to improve client awareness
+
+## Intelligent Content Processing
+
+**Content Processing:**
+- **Primary Path (LLM-based)**: Leverages LLM capabilities to:
+    - Semantically analyze content for optimal categorization
+    - Identify relationships between new and existing information  
+    - Determine appropriate markdown file targets and section placement
+    - Extract key concepts and metadata for improved retrieval
+
+- **Fallback Path (Rule-based)**: Deterministic algorithm implementation for reliable operation when LLM processing is unavailable:
+    - Keyword and pattern matching for content categorization
+    - Explicit file targeting based on predefined rules
+    - Time-based organization with automatic timestamping
+    - Structured metadata extraction using regex patterns
+
+- **Standard Processing Interface**:
+    - No content truncation during initial processing
+    - Consistent output format regardless of processing path used
+    - Standardized schema: `{target_file, operation_type, content, metadata}`
+    - Validation layer to verify LLM outputs against established constraints
+    - Uniform error handling with graceful degradation between paths
+
+**Continuous Cache Optimization:**
+- **Primary Path (LLM-based)**:
+    - Scheduled optimization runs triggered by size thresholds or time intervals
+    - Content prioritization based on multiple weighted factors:
+        - Current architecture decisions (historical designs clearly marked)
+        - Project scope definition and conversation context
+        - Active objectives and development milestones
+        - Technical decision history with explicit rationales
+        - Implementation patterns currently in use
+        - Critical dependencies and system constraints
+        - Recent development activities and progress markers
+    - Explicit relationship mapping between related content elements
+    - Version tracking with clear indicators for current vs. historical information
+
+- **Fallback Path (Rule-based)**: Deterministic alternative when LLM optimization is unavailable:
+    - Time-based retention rules (prioritize recent content)
+    - Section-based priorities (architecture > implementation > discussion)
+    - Metadata-driven filtering to preserve tagged critical information
+    - Fixed summarization rules for predictable results
 
 ## Implementation Considerations
 

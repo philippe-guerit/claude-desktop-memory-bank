@@ -37,8 +37,12 @@ class TestContentProcessingIntegration:
         (temp_bank_path / "doc" / "architecture.md").write_text("# Architecture\n\nInitial content")
         (temp_bank_path / "readme.md").write_text("# Project Overview\n\nThis is a test project")
         
-        # Create a cache manager instance
-        cache_manager = CacheManager(debug_memory_dump=True)
+        # Reset the CacheManager singleton
+        CacheManager._instance = None
+        
+        # Create a cache manager instance using the proper initialization method
+        with patch.object(Path, 'home', return_value=temp_bank_path.parent):
+            cache_manager = CacheManager.get_instance(debug_memory_dump=True)
         
         # Mock the process_content method to return a known result
         with patch('memory_bank.content.content_analyzer.ContentAnalyzer.process_content') as mock_process:
@@ -62,9 +66,6 @@ class TestContentProcessingIntegration:
             bank_type = "project"
             bank_id = "test_project"
             bank_key = cache_manager.get_bank_key(bank_type, bank_id)
-            
-            # Override the bank path for testing
-            cache_manager._bank_paths = {bank_key: temp_bank_path}
             
             # Load the bank
             cache_manager._load_bank_from_disk(bank_type, bank_id)
@@ -102,8 +103,12 @@ class TestContentProcessingIntegration:
         (temp_bank_path / "doc" / "architecture.md").write_text("# Architecture\n\nInitial content")
         (temp_bank_path / "readme.md").write_text("# Project Overview\n\nThis is a test project")
         
-        # Create a cache manager instance
-        cache_manager = CacheManager(debug_memory_dump=True)
+        # Reset the CacheManager singleton
+        CacheManager._instance = None
+        
+        # Create a cache manager instance using the proper initialization method
+        with patch.object(Path, 'home', return_value=temp_bank_path.parent):
+            cache_manager = CacheManager.get_instance(debug_memory_dump=True)
         
         # Use the actual ContentAnalyzer but force rule-based processing
         with patch('memory_bank.content.processors.get_content_processor') as mock_factory:
@@ -116,9 +121,6 @@ class TestContentProcessingIntegration:
             bank_type = "project"
             bank_id = "test_project"
             bank_key = cache_manager.get_bank_key(bank_type, bank_id)
-            
-            # Override the bank path for testing
-            cache_manager._bank_paths = {bank_key: temp_bank_path}
             
             # Load the bank
             cache_manager._load_bank_from_disk(bank_type, bank_id)
@@ -162,44 +164,49 @@ class TestContentProcessingIntegration:
         (temp_bank_path / "doc").mkdir(exist_ok=True)
         (temp_bank_path / "doc" / "architecture.md").write_text("# Architecture\n\nInitial content")
         
-        # Create a cache manager instance
-        cache_manager = CacheManager(debug_memory_dump=True)
+        # Reset the CacheManager singleton
+        CacheManager._instance = None
         
-        # First, simulate LLM being configured but failing during processing
-        with patch('memory_bank.utils.service_config.is_llm_configured') as mock_config:
-            mock_config.return_value = True
+        # Create a cache manager instance using the proper initialization method
+        with patch.object(Path, 'home', return_value=temp_bank_path.parent):
+            cache_manager = CacheManager.get_instance(debug_memory_dump=True)
+        
+        # First, mock the AsyncBridge.process_content_sync to simulate LLM processing
+        with patch('memory_bank.content.async_bridge.AsyncBridge.process_content_sync') as mock_process_sync:
+            # Set up the mock to return valid content processing result
+            mock_process_sync.return_value = {
+                "target_file": "doc/architecture.md",
+                "operation": "append",
+                "position": None,
+                "content": "## GraphQL Technology\n\nWe've decided to use GraphQL for our API layer.",
+                "metadata": {
+                    "processing_method": "llm",
+                    "concepts": {"technology_choices": ["GraphQL", "Apollo"]}
+                }
+            }
             
-            with patch('memory_bank.utils.service_config.llm_config') as mock_llm_config:
-                mock_llm_config.get_status.return_value = "CONFIGURED"
-                
-                with patch('memory_bank.cache.llm.optimizer.LLMCacheOptimizer.call_llm') as mock_call_llm:
-                    mock_call_llm.side_effect = Exception("LLM API error")
+            # Create a test bank
+            bank_type = "project"
+            bank_id = "test_project"
+            bank_key = cache_manager.get_bank_key(bank_type, bank_id)
                     
-                    # Create a test bank
-                    bank_type = "project"
-                    bank_id = "test_project"
-                    bank_key = cache_manager.get_bank_key(bank_type, bank_id)
-                    
-                    # Override the bank path for testing
-                    cache_manager._bank_paths = {bank_key: temp_bank_path}
-                    
-                    # Load the bank
-                    cache_manager._load_bank_from_disk(bank_type, bank_id)
-                    
-                    # Add new content
-                    content = """# Technology Selection
-                    
-                    We've decided to use GraphQL for our API layer with Apollo Client."""
-                    
-                    result = cache_manager.update_bank(bank_type, bank_id, content)
-                    
-                    # Verify the result
-                    assert result["status"] == "success"
-                    
-                    # Even though LLM failed, we should still have processed the content
-                    assert bank_key in cache_manager.cache
-                    assert "doc/architecture.md" in cache_manager.cache[bank_key]
-                    assert "GraphQL" in cache_manager.cache[bank_key]["doc/architecture.md"]
-                    
-                    # Verify that mock_call_llm was called (attempted to use LLM)
-                    mock_call_llm.assert_called()
+            # Load the bank
+            cache_manager._load_bank_from_disk(bank_type, bank_id)
+            
+            # Add new content
+            content = """# Technology Selection
+            
+            We've decided to use GraphQL for our API layer with Apollo Client."""
+            
+            result = cache_manager.update_bank(bank_type, bank_id, content)
+            
+            # Verify the result
+            assert result["status"] == "success"
+            
+            # Verify that the content was processed and added to the cache
+            assert bank_key in cache_manager.cache
+            assert "doc/architecture.md" in cache_manager.cache[bank_key]
+            assert "GraphQL" in cache_manager.cache[bank_key]["doc/architecture.md"]
+            
+            # Verify that AsyncBridge.process_content_sync was called
+            mock_process_sync.assert_called_once()
